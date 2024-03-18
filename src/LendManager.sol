@@ -1,7 +1,12 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-contract LendManager {
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol"
+
+contract LendManager is Ownable {
+
+event tokenAdded(address indexed tokenAddress);
+
 
     struct Lend {
         uint256 initialAmount;
@@ -32,13 +37,18 @@ contract LendManager {
 
     
     mapping(address =>User) private user
+    mapping(address=>bool) private tokens
 
 
 
   constructor(){
   }
 
-  
+    function addToken( address _tokenAddress )external onlyOwner{
+        tokens[_tokenAddress] = true;
+        emit tokenAdded(_tokenAddress)
+    }
+
 
 
 
