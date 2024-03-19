@@ -9,7 +9,7 @@ contract DeployMyContract is Script {
         vm.startBroadcast();
 
         // Desplega tu contrato aquí
-        LendManager lendManager = new LendManager();
+        LendManager lendManager = new LendManager(address(0));
 
         vm.stopBroadcast();
     }
