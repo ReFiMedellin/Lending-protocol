@@ -125,7 +125,7 @@ contract LendManager is Ownable, AccessControl, LiquidityManager {
         emit UserQuotaIncreaseRequest(msg.sender, recipent, amount, signers);
     }
 
-    function _increaseQuota(address recipent, uint8 index, address caller) external {
+    function _increaseQuota(address recipent, uint16 index, address caller) external returns (bool) {
         require(hasRole(ATTESTATION_RESOLVER, msg.sender), "Caller is not a valid attestation resolver");
         bool senderIsSigner = false;
         UserQuotaRequest storage userQuotaRequest = user[recipent].userQuotaRequests[index];
@@ -149,6 +149,7 @@ contract LendManager is Ownable, AccessControl, LiquidityManager {
             emit UserQuotaIncreased(caller, recipent, userQuotaRequest.amount);
         }
         emit UserQuotaSigned(caller, recipent, userQuotaRequest.amount);
+        return true;
     }
 
     function _withdraw(uint256 amount, address token, uint8 decimals) private {

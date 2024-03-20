@@ -7,14 +7,11 @@ library Utils {
         pure
         returns (uint256)
     {
-        uint256 rateAnnual = 6;
         uint256 compoundFrequency = 12;
         uint256 base = 10 ** 6;
-        uint256 ratePerPeriod = (rateAnnual * base) / compoundFrequency / 100;
+        uint256 ratePerPeriod = (interestAccrualRate * base) / compoundFrequency / 100;
 
-        uint256 timeInMonths = time / 30;
-
-        uint256 total = currentAmount * (base + ratePerPeriod) ** timeInMonths / base ** timeInMonths;
+        uint256 total = currentAmount * (base + ratePerPeriod) ** time / base ** time;
 
         uint256 interestEarned = total - currentAmount;
 
