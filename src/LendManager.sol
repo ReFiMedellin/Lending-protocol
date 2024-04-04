@@ -5,12 +5,31 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@/library/LendManagerUtils.sol";
-import "./LiquidityManager.sol";
 
 error UnavailableAmount();
 
-contract LendManager is Ownable, AccessControl, LiquidityManager {
-    bytes32 public constant ATTESTATION_RESOLVER = keccak256("ATTESTATION_RESOLVER");
+contract LendManager is Ownable, AccessControl {
+    event Funded(address indexed funder, uint256 amount, address indexed token, uint8 decimals);
+
+    event Withdraw(
+        address indexed withdrawer, uint256 amount, uint256 interests, address indexed token, uint8 decimals
+    );
+
+    event DelayedWithdraw(address indexed withdrawer, uint256 amount, address indexed token, uint8 decimals);
+
+    event Lending(address indexed lender, uint256 amount, address indexed token, uint8 decimals);
+
+    event UserQuotaIncreaseRequest(address indexed caller, address indexed recipent, uint256 amount, address[] signers);
+
+    event UserQuotaIncreased(address indexed caller, address indexed recipent, uint256 amount);
+
+    event UserQuotaSigned(address indexed signer, address indexed recipent, uint256 amount);
+
+    event TokenAdded(address indexed tokenAddress);
+
+    bytes32 private immutable ATTESTATION_RESOLVER = keccak256("ATTESTATION_RESOLVER");
+    uint256 INTEREST_RATE_PER_DAY = 16308;
+    uint120 public interestAccrualRate = 10;
 
     struct Lend {
         uint256 initialAmount;
@@ -32,27 +51,20 @@ contract LendManager is Ownable, AccessControl, LiquidityManager {
         Lend[] currentLends;
         UserQuotaRequest[] userQuotaRequests;
         uint256 currentFund;
-        uint256 currentLendedAmount;
-        uint256 currentAvailableLendAmount;
+        uint256 interestShares;
+        uint256 lastFund;
     }
 
     mapping(address => User) private user;
 
     struct Funds {
         uint256 totalFunds;
-        uint256 availableFunds;
         uint256 interests;
+        uint256 totalInterestShares;
+        uint256 interestPerShare;
     }
 
-    event Funded(address indexed funder, uint256 amount, address indexed token, uint8 decimals);
-    event Withdraw(
-        address indexed withdrawer, uint256 amount, uint256 interests, address indexed token, uint8 decimals
-    );
-    event DelayedWithdraw(address indexed withdrawer, uint256 amount, address indexed token, uint8 decimals);
-    event Lending(address indexed lender, uint256 amount, address indexed token, uint8 decimals);
-    event UserQuotaIncreaseRequest(address indexed caller, address indexed recipent, uint256 amount, address[] signers);
-    event UserQuotaIncreased(address indexed caller, address indexed recipent, uint256 amount);
-    event UserQuotaSigned(address indexed signer, address indexed recipent, uint256 amount);
+    mapping(address => bool) internal _tokens;
 
     mapping(address => mapping(uint256 => uint256)) private _delayedInterests;
     Funds private funds;
@@ -69,39 +81,29 @@ contract LendManager is Ownable, AccessControl, LiquidityManager {
         require(
             ERC20(token).transferFrom(msg.sender, address(this), amount * 10 ** decimals), "Error while transfer tokens"
         );
+        if (funds.totalFunds == 0) {
+            user[msg.sender].interestShares = amount;
+            funds.totalInterestShares = amount;
+        } else {
+            uint256 userShares = (amount * funds.totalInterestShares) / funds.totalFunds;
+            user[msg.sender].interestShares += userShares;
+            funds.totalInterestShares += userShares;
+        }
         user[msg.sender].currentFund += amount;
+        user[msg.sender].lastFund = block.timestamp;
         emit Funded(msg.sender, amount, token, decimals);
     }
 
-    function requestWithdraw(uint256 amount, address token) external {
+    function withdraw(uint256 amount, address token) external {
         uint8 decimals = ERC20(token).decimals();
         User storage currentUser = user[msg.sender];
-        if (currentUser.currentLendedAmount <= amount && currentUser.currentAvailableLendAmount >= amount) {
-            currentUser.currentAvailableLendAmount -= amount;
-            funds.availableFunds -= amount;
-            _withdraw(amount, token, decimals);
-        } else if (currentUser.currentAvailableLendAmount >= amount) {
-            currentUser.currentAvailableLendAmount -= amount;
-            uint256 interests = Utils.calculateInterest(1, 2, 3);
-            _delayedInterests[msg.sender][block.timestamp] = interests;
-            emit DelayedWithdraw(msg.sender, amount, token, decimals);
-        } else {
-            revert UnavailableAmount();
-        }
-    }
-
-    function claimDelayedWithdraw(uint256 amount, address token, uint256 timestamp) external {
-        uint8 decimals = ERC20(token).decimals();
-        User storage currentUser = user[msg.sender];
-        uint256 interests = _delayedInterests[msg.sender][timestamp];
-        require(decimals > 0, "Error while obtaining decimals");
-        require(amount > 0, "The amount must be greather than 0");
-        require(_tokens[token] == true, "The token is not whitelisted yet");
-        require(
-            currentUser.currentLendedAmount <= amount && currentUser.currentAvailableLendAmount >= amount,
-            "Invalid to claim delayed withdraw"
-        );
-        _withdraw(amount + interests, token, decimals);
+        uint256 lastFund = currentUser.lastFund;
+        uint256 daysSinceLastFund = Utils.timestampsToDays(lastFund, block.timestamp);
+        require(daysSinceLastFund >= 180, "The user must wait at least 180 days to withdraw funds");
+        require(currentUser.currentFund >= amount, "Insuficent funds");
+        uint256 owedInterest = (user.interestShares * interestPerShare) / 1e18;
+        funds.interests -= owedInterest;
+        _withdraw(amount + owedInterest, token, decimals);
     }
 
     function requestLend(uint256 amount, address token, uint256 paymentDue) external {
@@ -117,12 +119,66 @@ contract LendManager is Ownable, AccessControl, LiquidityManager {
         emit Lending(msg.sender, amount, token, decimals);
     }
 
+    function payDebt(uint256 amount, address token, uint256 lendIndex) external {
+        User storage currentUser = user[msg.sender];
+        Lend storage currentLend = currentUser.currentLends[lendIndex];
+        require(currentLend.currentAmount >= amount, "Invalid amount to pay");
+        uint256 time = Utils.timestampsToDays(currentLend.latestDebtTimestamp, block.timestamp);
+        uint256 interests = Utils.calculateInterest(time, INTEREST_RATE_PER_DAY, currentAmount);
+        uint8 decimals = ERC20(token).decimals();
+        require(decimals > 0, "Error while obtaining decimals");
+        require(_tokens[token], "The token is not whitelisted yet");
+        require(
+            ERC20(token).transferFrom(msg.sender, address(this), (amount + interests) * 10 ** decimals),
+            "Error while transfering assets"
+        );
+        currentLend.currentAmount -= amount + interests;
+        if (funds.totalInterestShares > 0) {
+            funds.interestPerShare += (interests * 1e18) / funds.totalInterestShares;
+        }
+        if (currentLend.currentAmount == 0) {
+            currentUser.currentLends[lendIndex] = currentUser.currentLends[currentUser.currentLends.length - 1];
+            currentUser.currentLends.pop();
+            currentUser.quota += currentLend.initialAmount;
+        }
+    }
+
     function requestIncreaseQuota(address recipent, uint256 amount, address[] calldata signers) external {
         require(signers.length >= 3, "Signers must be at leat 3");
         require(signers.length <= 10, "Signers must be least than 10");
         require(amount > 0, "Amount must be greather than 0");
         user[recipent].userQuotaRequests.push(UserQuotaRequest(amount, 0, new address[](0), signers));
         emit UserQuotaIncreaseRequest(msg.sender, recipent, amount, signers);
+    }
+
+    function addToken(address tokenAddress) external onlyOwner {
+        _tokens[tokenAddress] = true;
+        emit TokenAdded(tokenAddress);
+    }
+
+    function getUserLendsPaginated(address userAddress, uint256 page, uint256 pageSize)
+        external
+        view
+        returns (Lend[] memory)
+    {
+        User storage currentUser = user[userAddress];
+        uint256 totalLends = currentUser.currentLends.length;
+        uint256 totalPages = totalLends / pageSize;
+        if (totalLends % pageSize > 0) {
+            totalPages += 1;
+        }
+        require(page <= totalPages, "Invalid page");
+        require(pageSize > 0 && pageSize <= totalPages, "Invalid page size");
+        uint256 startIndex = (page - 1) * pageSize;
+        uint256 endIndex = startIndex + pageSize;
+        if (endIndex > totalLends) {
+            endIndex = totalLends;
+        }
+        Lend[] memory result = new Lend[](endIndex - startIndex);
+        for (uint256 i = startIndex; i < endIndex; i++) {
+            result[i - startIndex] = currentUser.currentLends[i];
+        }
+        return result;
     }
 
     function _increaseQuota(address recipent, uint16 index, address caller) external returns (bool) {
@@ -154,6 +210,7 @@ contract LendManager is Ownable, AccessControl, LiquidityManager {
 
     function _withdraw(uint256 amount, address token, uint8 decimals) private {
         User storage currentUser = user[msg.sender];
+        require(ERC20(token).balanceOf(address(this)) >= amount * (10 ** decimals), "Insuficent liquidity");
         require(decimals > 0, "Error while obtaining decimals");
         require(amount > 0, "The amount must be greather than 0");
         require(_tokens[token] == true, "The token is not whitelisted yet");
@@ -162,7 +219,7 @@ contract LendManager is Ownable, AccessControl, LiquidityManager {
         uint256 interests = funds.interests * percentaje;
         funds.interests -= interests;
         currentUser.currentFund -= amount;
-        funds.totalFunds -= amount + interests;
+        funds.totalFunds -= amount;
 
         require(
             ERC20(token).transfer(msg.sender, (amount * (10 ** decimals)) + interests), "Failed when withdrawing funds"
