@@ -101,7 +101,7 @@ contract LendManager is Ownable, AccessControl {
         uint256 daysSinceLastFund = Utils.timestampsToDays(lastFund, block.timestamp);
         require(daysSinceLastFund >= 180, "The user must wait at least 180 days to withdraw funds");
         require(currentUser.currentFund >= amount, "Insuficent funds");
-        uint256 owedInterest = (user.interestShares * interestPerShare) / 1e18;
+        uint256 owedInterest = (currentUser.interestShares * funds.interestPerShare) / 1e18;
         funds.interests -= owedInterest;
         _withdraw(amount + owedInterest, token, decimals);
     }
@@ -124,7 +124,7 @@ contract LendManager is Ownable, AccessControl {
         Lend storage currentLend = currentUser.currentLends[lendIndex];
         require(currentLend.currentAmount >= amount, "Invalid amount to pay");
         uint256 time = Utils.timestampsToDays(currentLend.latestDebtTimestamp, block.timestamp);
-        uint256 interests = Utils.calculateInterest(time, INTEREST_RATE_PER_DAY, currentAmount);
+        uint256 interests = Utils.calculateInterest(time, INTEREST_RATE_PER_DAY, currentLend.currentAmount);
         uint8 decimals = ERC20(token).decimals();
         require(decimals > 0, "Error while obtaining decimals");
         require(_tokens[token], "The token is not whitelisted yet");

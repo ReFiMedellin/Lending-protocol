@@ -2,7 +2,7 @@
 pragma solidity ^0.8.19;
 
 library Utils {
-    function calculateInterest(uint256 time, uint120 interestAccrualRate, uint256 currentAmount)
+    function calculateInterest(uint256 time, uint256 interestAccrualRate, uint256 currentAmount)
         public
         pure
         returns (uint256)
