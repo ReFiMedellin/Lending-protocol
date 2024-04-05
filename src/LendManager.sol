@@ -32,7 +32,8 @@ contract LendManager is Ownable, AccessControl {
     bytes32 private immutable ATTESTATION_RESOLVER = keccak256("ATTESTATION_RESOLVER");
     uint256 INTEREST_RATE_PER_DAY = 16308;
     uint120 public interestAccrualRate = 10;
-    Treshold[] private tresholds = [Treshold(1000, 3), Treshold(5000, 5), Treshold(10000, 7)];
+    Treshold[] private tresholds;
+    mapping(address => User) public user;
 
     struct Treshold {
         uint256 minAmount;
@@ -71,8 +72,6 @@ contract LendManager is Ownable, AccessControl {
         uint256 amount;
     }
 
-    mapping(address => User) private user;
-
     struct Funds {
         uint256 totalFunds;
         uint256 interests;
@@ -93,7 +92,6 @@ contract LendManager is Ownable, AccessControl {
         require(_tokens[token] == true, "Token is not in whitelist");
         uint8 decimals = ERC20(token).decimals();
         require(decimals > 0, "Error while obtaining decimals");
-        require(_tokens[token] == true, "The token is not whitelisted yet");
         require(
             ERC20(token).transferFrom(msg.sender, address(this), amount * 10 ** decimals), "Error while transfer tokens"
         );
@@ -107,6 +105,7 @@ contract LendManager is Ownable, AccessControl {
         }
         user[msg.sender].currentFund += amount;
         user[msg.sender].lastFund = block.timestamp;
+        user[msg.sender].availableDelegateQuota += amount * 4 / 5;
         emit Funded(msg.sender, amount, token, decimals);
     }
 
@@ -161,15 +160,11 @@ contract LendManager is Ownable, AccessControl {
         emit Debt(msg.sender, amount, interests, token, decimals);
     }
 
-    function requestIncreaseQuota(address recipent, uint256 amount, address[] calldata signers)
-        external
-        returns (bool)
-    {
+    function requestIncreaseQuota(address recipent, uint256 amount, address[] calldata signers) external {
         require(signers.length >= 3, "Signers must be at leat 3");
         require(signers.length <= 10, "Signers must be least than 10");
         require(amount > 0, "Amount must be greather than 0");
         require(user[msg.sender].currentFund >= amount, "Insuficent funds");
-        require(user[msg.sender].availableDelegateQuota >= user[msg.sender].currentFund * 0.8, "Unavailable amount");
         require(user[msg.sender].availableDelegateQuota >= amount, "Unavailable amount");
         uint8 maxLenders = 0;
         for (uint8 i = 0; i < tresholds.length; i++) {
@@ -274,8 +269,11 @@ contract LendManager is Ownable, AccessControl {
         return true;
     }
 
-    function _changeTresholds(Treshold[] memory newTresholds) external onlyOwner {
-        tresholds = newTresholds;
+    function _setTresholds(Treshold[] calldata newTresholds) public onlyOwner {
+        delete tresholds;
+        for (uint256 i = 0; i < newTresholds.length; i++) {
+            tresholds.push(newTresholds[i]);
+        }
     }
 
     function _withdraw(uint256 amount, address token, uint8 decimals) private {
