@@ -5,20 +5,16 @@ library Utils {
     function calculateInterest(uint256 time, uint256 interestAccrualRate, uint256 currentAmount)
         public
         pure
-        returns (uint256)
+        returns (uint256, uint256)
     {
-        if (time == 0) {
-            return 0;
+        uint256 compoundInterest = currentAmount * 1e18;
+
+        for (uint256 i = 0; i < time; i++) {
+            compoundInterest = (compoundInterest * (10 ** 8 + interestAccrualRate)) / 10 ** 8;
         }
-        uint256 compoundFrequency = 12;
-        uint256 base = 10 ** 6;
-        uint256 ratePerPeriod = (interestAccrualRate * base) / compoundFrequency / 100;
-
-        uint256 total = currentAmount * (base + ratePerPeriod) ** time / base ** time;
-
-        uint256 interestEarned = total - currentAmount;
-
-        return interestEarned;
+        uint256 dummyInterest = compoundInterest;
+        uint256 totalInterest = dummyInterest - currentAmount * 1e18;
+        return (totalInterest / 1e18, dummyInterest / 1e18);
     }
 
     function timestampsToDays(uint256 startTimestamp, uint256 finishTimestamp) internal pure returns (uint256) {
