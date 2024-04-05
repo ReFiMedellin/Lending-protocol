@@ -32,7 +32,7 @@ contract LendManagerTest is Test {
         vm.startPrank(currentUser);
     }
 
-    function testRequestAndRepayLend() public {
+    function testRequestAndRepayLend() public view {
         console.logUint(2);
         // uint256 amount = 1000;
         // lendManager.requestLend(amount, address(token), block.timestamp + 30 days);
