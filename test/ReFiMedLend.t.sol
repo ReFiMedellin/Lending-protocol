@@ -2,11 +2,14 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "../src/LendManager.sol";
 import "forge-std/console.sol";
+import "../src/ReFiMedLend.sol";
+import "../src/Resolver.sol";
 import "./MockERC20.sol";
+import {SchemaRegistry} from "../lib/eas-contracts/contracts/SchemaRegistry.sol";
+import {EAS} from "../lib/eas-contracts/contracts/EAS.sol";
 
-contract LendManagerTest is Test {
+contract ReFiMedLend is Test {
     struct Treshold {
         uint256 minAmount;
         uint8 lenders;
@@ -14,26 +17,24 @@ contract LendManagerTest is Test {
 
     using stdStorage for StdStorage;
 
-    LendManager lendManager;
-    MockERC20 token;
-    address currentUser = address(1);
+    Resolver public resolver;
+    ReFiMedLend public ReFiMedLend;
+
+    MockERC20 public token;
+    address public currentUser = address(1);
 
     function setUp() public {
-        lendManager = new LendManager(address(this));
+        ReFiMedLend = new ReFiMedLend(address(this));
+        schemaRegistry = new SchemaRegistry();
+        eas = new EAS(address(schemaRegistry));
+        resolver = new Resolver(eas);
         token = new MockERC20();
-        lendManager.addToken(address(token));
-        LendManager.Treshold[] memory tresholds = new LendManager.Treshold[](1);
-        tresholds[0] = LendManager.Treshold(1000, 3);
-        lendManager._setTresholds(tresholds);
-
+        ReFiMedLend.addToken(address(resolver));
+        ReFiMedLend._setTresholds(tresholds);
         token.mint(address(lendManager), 1e18);
-        bytes32 slot = keccak256(abi.encode(currentUser, uint256(4)));
-        vm.store(address(lendManager), slot, bytes32(uint256(1000)));
-        vm.startPrank(currentUser);
     }
 
     function testRequestAndRepayLend() public view {
-        console.logUint(2);
         // uint256 amount = 1000;
         // lendManager.requestLend(amount, address(token), block.timestamp + 30 days);
         // uint256 debtAmount = 1000;
