@@ -139,7 +139,8 @@ contract LendManager is Ownable, AccessControl {
         Lend storage currentLend = currentUser.currentLends[lendIndex];
         require(currentLend.currentAmount >= amount, "Invalid amount to pay");
         uint256 time = Utils.timestampsToDays(currentLend.latestDebtTimestamp, block.timestamp);
-        uint256 interests = Utils.calculateInterest(time, INTEREST_RATE_PER_DAY, currentLend.currentAmount);
+        (uint256 interests, uint256 totalDebt) =
+            Utils.calculateInterest(time, INTEREST_RATE_PER_DAY, currentLend.currentAmount);
         uint8 decimals = ERC20(token).decimals();
         require(decimals > 0, "Error while obtaining decimals");
         require(_tokens[token], "The token is not whitelisted yet");
