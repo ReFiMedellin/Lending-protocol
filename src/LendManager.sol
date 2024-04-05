@@ -15,7 +15,9 @@ contract LendManager is Ownable, AccessControl {
         address indexed withdrawer, uint256 amount, uint256 interests, address indexed token, uint8 decimals
     );
 
-    event DelayedWithdraw(address indexed withdrawer, uint256 amount, address indexed token, uint8 decimals);
+    event Debt(address indexed debtor, uint256 amount, uint256 interests, address indexed token, uint8 decimals);
+
+    event lendRepaid(address indexed lender, uint256 amount, address indexed token, uint8 decimals);
 
     event Lending(address indexed lender, uint256 amount, address indexed token, uint8 decimals);
 
@@ -30,6 +32,12 @@ contract LendManager is Ownable, AccessControl {
     bytes32 private immutable ATTESTATION_RESOLVER = keccak256("ATTESTATION_RESOLVER");
     uint256 INTEREST_RATE_PER_DAY = 16308;
     uint120 public interestAccrualRate = 10;
+    Treshold[] private tresholds = [Treshold(1000, 3), Treshold(5000, 5), Treshold(10000, 7)];
+
+    struct Treshold {
+        uint256 minAmount;
+        uint8 lenders;
+    }
 
     struct Lend {
         uint256 initialAmount;
@@ -44,15 +52,23 @@ contract LendManager is Ownable, AccessControl {
         uint8 successfulSigns;
         address[] signers;
         address[] signedBy;
+        address caller;
     }
 
     struct User {
         uint256 quota;
+        uint256 availableDelegateQuota;
         Lend[] currentLends;
         UserQuotaRequest[] userQuotaRequests;
         uint256 currentFund;
         uint256 interestShares;
         uint256 lastFund;
+        Lender[] lenders;
+    }
+
+    struct Lender {
+        address lender;
+        uint256 amount;
     }
 
     mapping(address => User) private user;
@@ -140,14 +156,34 @@ contract LendManager is Ownable, AccessControl {
             currentUser.currentLends[lendIndex] = currentUser.currentLends[currentUser.currentLends.length - 1];
             currentUser.currentLends.pop();
             currentUser.quota += currentLend.initialAmount;
+            emit lendRepaid(msg.sender, amount, token, decimals);
         }
+        emit Debt(msg.sender, amount, interests, token, decimals);
     }
 
-    function requestIncreaseQuota(address recipent, uint256 amount, address[] calldata signers) external {
+    function requestIncreaseQuota(address recipent, uint256 amount, address[] calldata signers)
+        external
+        returns (bool)
+    {
         require(signers.length >= 3, "Signers must be at leat 3");
         require(signers.length <= 10, "Signers must be least than 10");
         require(amount > 0, "Amount must be greather than 0");
-        user[recipent].userQuotaRequests.push(UserQuotaRequest(amount, 0, new address[](0), signers));
+        require(user[msg.sender].currentFund >= amount, "Insuficent funds");
+        require(user[msg.sender].availableDelegateQuota >= user[msg.sender].currentFund * 0.8, "Unavailable amount");
+        require(user[msg.sender].availableDelegateQuota >= amount, "Unavailable amount");
+        uint8 maxLenders = 0;
+        for (uint8 i = 0; i < tresholds.length; i++) {
+            if (user[msg.sender].currentFund < tresholds[i].minAmount) {
+                if (i == 0) {
+                    maxLenders = 0;
+                } else {
+                    maxLenders = tresholds[i - 1].lenders;
+                }
+            }
+        }
+
+        require(user[msg.sender].lenders.length <= maxLenders, "The user has reached the maximum number of lenders");
+        user[recipent].userQuotaRequests.push(UserQuotaRequest(amount, 0, new address[](0), signers, msg.sender));
         emit UserQuotaIncreaseRequest(msg.sender, recipent, amount, signers);
     }
 
@@ -181,8 +217,29 @@ contract LendManager is Ownable, AccessControl {
         return result;
     }
 
+    function decreaseQuota(address recipent, uint256 amount) external {
+        require(user[recipent].quota >= amount, "Insuficent quota");
+        bool isBenefactor = false;
+        uint8 index = 0;
+        for (uint8 i = 0; i < user[msg.sender].lenders.length; i++) {
+            if (user[msg.sender].lenders[i].lender == recipent) {
+                isBenefactor = true;
+                index = i;
+                break;
+            }
+        }
+        require(isBenefactor, "The caller is not a benefactor");
+        user[recipent].quota -= amount;
+        user[msg.sender].availableDelegateQuota += amount;
+        if (user[recipent].quota == 0) {
+            user[msg.sender].lenders[index] = user[msg.sender].lenders[user[msg.sender].lenders.length - 1];
+            user[msg.sender].lenders.pop();
+        }
+    }
+
     function _increaseQuota(address recipent, uint16 index, address caller) external returns (bool) {
         require(hasRole(ATTESTATION_RESOLVER, msg.sender), "Caller is not a valid attestation resolver");
+
         bool senderIsSigner = false;
         UserQuotaRequest storage userQuotaRequest = user[recipent].userQuotaRequests[index];
         for (uint8 signerIndex; signerIndex <= userQuotaRequest.signers.length; signerIndex++) {
@@ -204,8 +261,21 @@ contract LendManager is Ownable, AccessControl {
             user[recipent].quota += userQuotaRequest.amount;
             emit UserQuotaIncreased(caller, recipent, userQuotaRequest.amount);
         }
-        emit UserQuotaSigned(caller, recipent, userQuotaRequest.amount);
+
+        for (uint8 i = 0; i < user[userQuotaRequest.caller].lenders.length; i++) {
+            if (user[userQuotaRequest.caller].lenders[i].lender == recipent) {
+                user[userQuotaRequest.caller].lenders[i].amount += userQuotaRequest.amount;
+                user[userQuotaRequest.caller].availableDelegateQuota -= userQuotaRequest.amount;
+                emit UserQuotaSigned(caller, recipent, userQuotaRequest.amount);
+                return true;
+            }
+        }
+        user[userQuotaRequest.caller].lenders.push(Lender(recipent, userQuotaRequest.amount));
         return true;
+    }
+
+    function _changeTresholds(Treshold[] memory newTresholds) external onlyOwner {
+        tresholds = newTresholds;
     }
 
     function _withdraw(uint256 amount, address token, uint8 decimals) private {
