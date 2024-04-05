@@ -133,13 +133,13 @@ contract ReFiMedLend is Ownable, AccessControl {
         uint256 scaledAmount = amount * _SCALAR;
         require(currentLend.currentAmount >= scaledAmount, "Invalid amount to pay");
         uint256 time = Utils.timestampsToDays(currentLend.latestDebtTimestamp, block.timestamp);
-        (uint256 interests, uint256 totalDebt) =
-            Utils.calculateInterest(time, INTEREST_RATE_PER_DAY, currentLend.currentAmount);
+        (uint256 interests, uint256 totalDebt) = Utils.calculateInterest(time, INTEREST_RATE_PER_DAY, scaledAmount);
         uint8 decimals = ERC20(token).decimals();
+        require(currentLend.currentAmount + interests >= scaledAmount, "Invalid amount to pay");
         require(decimals > 0, "Error while obtaining decimals");
         require(_tokens[token], "The token is not whitelisted yet");
         require(
-            ERC20(token).transferFrom(msg.sender, address(this), totalDebt * 10 ** (decimals - 3)),
+            ERC20(token).transferFrom(msg.sender, address(this), scaledAmount * 10 ** (decimals - 3)),
             "Error while transfering assets"
         );
         currentLend.currentAmount -= scaledAmount;

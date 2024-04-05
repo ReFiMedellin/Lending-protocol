@@ -14,6 +14,7 @@ contract ReFiMedLendTest is Test {
     event UserQuotaIncreased(address indexed caller, address indexed recipent, uint256 amount);
     event Lending(address indexed lender, uint256 amount, address indexed token, uint8 decimals);
     event lendRepaid(address indexed lender, uint256 amount, address indexed token, uint8 decimals);
+    event Debt(address indexed debtor, uint256 amount, uint256 interests, address indexed token, uint8 decimals);
 
     using stdStorage for StdStorage;
 
@@ -149,6 +150,52 @@ contract ReFiMedLendTest is Test {
         vm.expectEmit(true, true, false, true);
         emit lendRepaid(currentUser, 500, address(token), 18);
         refiMedLend.payDebt(500, address(token), 0);
+        (uint256 totalFunds, uint256 interests, uint256 totalInterestShares, uint256 interestPerShare) =
+            refiMedLend.funds();
+        assert(interests == _interest);
+        console.log("_interest: ", _interest);
+        console.log("interests: ", interests);
+        console.log("Days: ", time);
+        console.log("timesTamp: ", block.timestamp);
+        console.log("interest per share", interestPerShare);
+        console.log("Total shares", totalInterestShares);
+    }
+
+    function testPartialyPayLend() public {
+        address[] memory signers = new address[](3);
+        token.approve(address(refiMedLend), 1000 * 1e18);
+        refiMedLend.fund(1000, address(token));
+        assertEq(token.balanceOf(address(refiMedLend)), 1000 * 1e18);
+        signers[0] = signer1;
+        signers[1] = signer2;
+        signers[2] = signer3;
+        refiMedLend.requestIncreaseQuota(currentUser, 500, signers);
+        vm.expectEmit(true, true, false, true);
+        emit UserQuotaSigned(signer1, currentUser, 500);
+        refiMedLend._increaseQuota(currentUser, 0, signer1);
+        vm.expectEmit(true, true, false, true);
+        emit UserQuotaSigned(signer2, currentUser, 500);
+        refiMedLend._increaseQuota(currentUser, 0, signer2);
+        vm.expectEmit(true, true, false, true);
+        emit UserQuotaIncreased(signer3, currentUser, 500);
+        vm.expectEmit(true, true, false, true);
+        emit UserQuotaSigned(signer3, currentUser, 500);
+        refiMedLend._increaseQuota(currentUser, 0, signer3);
+        vm.prank(currentUser);
+        refiMedLend.requestLend(500, address(token), block.timestamp + 1000);
+        assert(token.balanceOf(address(refiMedLend)) == 500 * 1e18);
+        uint256 time = Utils.timestampsToDays(block.timestamp, block.timestamp + 31556926);
+        (uint256 _interest, uint256 _totalDebt) =
+            Utils.calculateInterest(time, refiMedLend.INTEREST_RATE_PER_DAY(), 200 * _SCALAR);
+        console.log("timesTamp: ", block.timestamp);
+        vm.warp(31556927);
+        vm.prank(currentUser);
+        token.approve(address(refiMedLend), _totalDebt * 1e15);
+        token.mint(address(currentUser), _totalDebt * 1e15);
+        vm.prank(currentUser);
+        vm.expectEmit(true, true, false, true);
+        emit Debt(currentUser, 200, _interest, address(token), 18);
+        refiMedLend.payDebt(200, address(token), 0);
         (uint256 totalFunds, uint256 interests, uint256 totalInterestShares, uint256 interestPerShare) =
             refiMedLend.funds();
         assert(interests == _interest);
