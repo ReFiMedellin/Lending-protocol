@@ -6,12 +6,6 @@ import {IEAS, Attestation} from "@ethereum-attestation-service/contracts/IEAS.so
 import {ILendManager} from "./interfaces/ILendManager.sol";
 
 contract LendResolver is SchemaResolver {
-    struct QuotaRequest {
-        uint256 amount;
-        address recipent;
-        uint16 index;
-    }
-
     address private _lendManager;
 
     constructor(IEAS eas) SchemaResolver(eas) {}
@@ -21,7 +15,7 @@ contract LendResolver is SchemaResolver {
     }
 
     function onAttest(Attestation calldata attestation, uint256 /*value*/ ) internal override returns (bool) {
-        QuotaRequest memory quotaRequest = abi.decode(attestation.data, (QuotaRequest));
+        QuotaRequest memory quotaRequest = abi.decode(attestation.data, (uint256, address, uint16));
         bool success =
             ILendManager(_lendManager)._increaseQuota(quotaRequest.recipent, quotaRequest.index, attestation.attester);
         if (success) {
