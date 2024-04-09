@@ -30,11 +30,9 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
 
     event TokenAdded(address indexed tokenAddress);
 
-    event Dummy(uint256 some, address recipent);
-
-    bytes32 private immutable ATTESTATION_RESOLVER = keccak256("ATTESTATION_RESOLVER");
+    bytes32 private constant ATTESTATION_RESOLVER = keccak256("ATTESTATION_RESOLVER");
     uint256 public INTEREST_RATE_PER_DAY = 16308;
-    uint256 private immutable _SCALAR = 1e3;
+    uint256 private constant _SCALAR = 1e3;
 
     mapping(address => User) public user;
     mapping(address => mapping(address => uint256)) private _userTokenBalances;
@@ -79,7 +77,7 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
     }
 
     function fund(uint256 amount, address token) external whenNotPaused {
-        require(_tokens[token] == true, "Token is not in whitelist");
+        require(_tokens[token], "Token is not in whitelist");
         uint8 decimals = ERC20(token).decimals();
         require(decimals > 0, "Error while obtaining decimals");
         require(
@@ -144,7 +142,7 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
         uint256 balance = ERC20(token).balanceOf(address(this));
         require(balance >= amount * 10 ** decimals, "Insuficent liquidity");
         currentUser.currentLends.push(Lend(scaledAmount, scaledAmount, token, paymentDue, 0));
-        currentUser.quota -= amount;
+        currentUser.quota -= scaledAmount;
         require(ERC20(token).transfer(msg.sender, amount * 10 ** decimals), "Error while transfering assets");
         emit Lending(msg.sender, amount, token, decimals);
     }
@@ -188,7 +186,7 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
         require(signers.length <= 10, "Signers must be least than 10");
         require(amount > 0, "Amount must be greather than 0");
         user[recipent].userQuotaRequests.push(UserQuotaRequest(amount, 0, new address[](0), new address[](0)));
-        for (uint8 i = 0; i < signers.length; i++) {
+        for (uint8 i; i < signers.length; ++i) {
             user[recipent].userQuotaRequests[user[recipent].userQuotaRequests.length - 1].signers.push(signers[i]);
         }
         emit UserQuotaIncreaseRequest(msg.sender, recipent, amount, signers);
@@ -218,7 +216,7 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
             endIndex = totalLends;
         }
         Lend[] memory result = new Lend[](endIndex - startIndex);
-        for (uint256 i = startIndex; i < endIndex; i++) {
+        for (uint256 i = startIndex; i < endIndex; ++i) {
             result[i - startIndex] = currentUser.currentLends[i];
         }
         return result;
@@ -233,16 +231,18 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
     function _increaseQuota(address recipent, uint16 index, address caller) external returns (bool) {
         require(hasRole(ATTESTATION_RESOLVER, msg.sender), "Caller is not a valid attestation resolver");
 
-        bool senderIsSigner = false;
+        bool senderIsSigner;
         UserQuotaRequest storage userQuotaRequest = user[recipent].userQuotaRequests[index];
         uint256 scaledAmount = userQuotaRequest.amount * _SCALAR;
-        for (uint8 signerIndex = 0; signerIndex < userQuotaRequest.signers.length; signerIndex++) {
+        uint256 userQuotaSignersLength = userQuotaRequest.signers.length;
+        for (uint8 signerIndex; signerIndex < userQuotaSignersLength; ++signerIndex) {
             if (userQuotaRequest.signers[signerIndex] == caller) {
                 senderIsSigner = true;
             }
         }
-        bool senderHasSigned = false;
-        for (uint8 signerIndex = 0; signerIndex < userQuotaRequest.signedBy.length; signerIndex++) {
+        bool senderHasSigned;
+        uint256 userQuotaSignedByLength = userQuotaRequest.signedBy.length;
+        for (uint8 signerIndex; signerIndex < userQuotaSignedByLength; ++signerIndex) {
             if (userQuotaRequest.signedBy.length == 0) {
                 break;
             }
@@ -269,13 +269,17 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
         require(ERC20(token).transfer(msg.sender, balance), "Error while transfering funds");
     }
 
+    function _setInterestPerDay(uint256 interestRate) external onlyOwner {
+        INTEREST_RATE_PER_DAY = interestRate;
+    }
+
     function _withdraw(uint256 amount, uint256 interests, address token, uint8 decimals) private {
         uint256 scaledAmount = amount * _SCALAR;
         User storage currentUser = user[msg.sender];
         require(ERC20(token).balanceOf(address(this)) >= amount * (10 ** decimals), "Insuficent liquidity");
         require(decimals > 0, "Error while obtaining decimals");
         require(amount > 0, "The amount must be greather than 0");
-        require(_tokens[token] == true, "The token is not whitelisted yet");
+        require(_tokens[token], "The token is not whitelisted yet");
         require((currentUser.currentFund -= scaledAmount) >= 0, "Invalid amount");
         funds.totalFunds -= scaledAmount;
 
