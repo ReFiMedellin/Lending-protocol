@@ -222,6 +222,10 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
         return result;
     }
 
+    function getUserQuotaRequests(address userAddress) external view returns (UserQuotaRequest[] memory) {
+        return user[userAddress].userQuotaRequests;
+    }
+
     function decreaseQuota(address recipent, uint256 amount) external whenNotPaused {
         uint256 scaledAmount = amount * _SCALAR;
         require(user[recipent].quota >= scaledAmount, "Insuficent quota");
@@ -256,6 +260,9 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
         userQuotaRequest.successfulSigns += 1;
         if (userQuotaRequest.successfulSigns == 3) {
             user[recipent].quota += scaledAmount;
+            user[recipent].userQuotaRequests[index] =
+                user[recipent].userQuotaRequests[user[recipent].userQuotaRequests.length - 1];
+            user[recipent].userQuotaRequests.pop();
             emit UserQuotaIncreased(caller, recipent, userQuotaRequest.amount);
         }
         emit UserQuotaSigned(caller, recipent, userQuotaRequest.amount);
