@@ -254,7 +254,7 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
         require(!senderHasSigned, "Sender has signed yet");
         userQuotaRequest.signedBy.push(caller);
         userQuotaRequest.successfulSigns += 1;
-        if (userQuotaRequest.successfulSigns >= 3) {
+        if (userQuotaRequest.successfulSigns == 3) {
             user[recipent].quota += scaledAmount;
             emit UserQuotaIncreased(caller, recipent, userQuotaRequest.amount);
         }
