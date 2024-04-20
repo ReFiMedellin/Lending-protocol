@@ -4,7 +4,7 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 import "forge-std/console.sol";
 import "../src/ReFiMedLend.sol";
-import "../src/Resolver.sol";
+import "../src/ReFiMedLendResolver.sol";
 import "./MockERC20.sol";
 import "@/library/LendManagerUtils.sol";
 
@@ -23,7 +23,7 @@ contract ReFiMedLendTest is Test {
 
     uint256 private immutable _SCALAR = 1e3;
 
-    LendResolver public resolver;
+    ReFiMedLendResolver public resolver;
     ReFiMedLend public refiMedLend;
 
     MockERC20 public token;
@@ -61,9 +61,9 @@ contract ReFiMedLendTest is Test {
         signers[1] = signer2;
         signers[2] = signer3;
         refiMedLend.requestIncreaseQuota(currentUser, amount, signers);
-        refiMedLend._increaseQuota(currentUser, 0, signer1);
-        refiMedLend._increaseQuota(currentUser, 0, signer2);
-        refiMedLend._increaseQuota(currentUser, 0, signer3);
+        refiMedLend.increaseQuota(currentUser, 0, signer1);
+        refiMedLend.increaseQuota(currentUser, 0, signer2);
+        refiMedLend.increaseQuota(currentUser, 0, signer3);
     }
 
     function testFund() public {
@@ -93,15 +93,15 @@ contract ReFiMedLendTest is Test {
         prepareQuotaIncrease(500);
         vm.expectEmit(true, true, false, true);
         emit UserQuotaSigned(signer1, currentUser, 500);
-        refiMedLend._increaseQuota(currentUser, 0, signer1);
+        refiMedLend.increaseQuota(currentUser, 0, signer1);
         vm.expectEmit(true, true, false, true);
         emit UserQuotaSigned(signer2, currentUser, 500);
-        refiMedLend._increaseQuota(currentUser, 0, signer2);
+        refiMedLend.increaseQuota(currentUser, 0, signer2);
         vm.expectEmit(true, true, false, true);
         emit UserQuotaIncreased(signer3, currentUser, 500);
         vm.expectEmit(true, true, false, true);
         emit UserQuotaSigned(signer3, currentUser, 500);
-        refiMedLend._increaseQuota(currentUser, 0, signer3);
+        refiMedLend.increaseQuota(currentUser, 0, signer3);
     }
 
     function testMakeLend() public {
