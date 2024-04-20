@@ -5,7 +5,7 @@ import {SchemaResolver} from "@ethereum-attestation-service/contracts/resolver/S
 import {IEAS, Attestation} from "@ethereum-attestation-service/contracts/IEAS.sol";
 import {ILendManager} from "./interfaces/ILendManager.sol";
 
-contract LendResolver is SchemaResolver {
+contract ReFiMedLendResolver is SchemaResolver {
     address private _lendManager;
 
     constructor(IEAS eas) SchemaResolver(eas) {}
@@ -16,7 +16,7 @@ contract LendResolver is SchemaResolver {
 
     function onAttest(Attestation calldata attestation, uint256 /*value*/ ) internal override returns (bool) {
         (uint256 amount, address recipent, uint16 index) = abi.decode(attestation.data, (uint256, address, uint16));
-        bool success = ILendManager(_lendManager)._increaseQuota(recipent, index, attestation.attester);
+        bool success = ILendManager(_lendManager).increaseQuota(recipent, index, attestation.attester);
         if (success) {
             return true;
         }

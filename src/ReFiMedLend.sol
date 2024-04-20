@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity 0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
@@ -7,36 +7,7 @@ import "@openzeppelin/contracts/utils/Pausable.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@/library/LendManagerUtils.sol";
 
-error UnavailableAmount();
-
 contract ReFiMedLend is Ownable, AccessControl, Pausable {
-    event Funded(address indexed funder, uint256 amount, address indexed token, uint8 decimals);
-
-    event Withdraw(
-        address indexed withdrawer, uint256 amount, uint256 interests, address indexed token, uint8 decimals
-    );
-
-    event Debt(address indexed debtor, uint256 amount, uint256 interests, address indexed token, uint8 decimals);
-
-    event lendRepaid(address indexed lender, uint256 amount, address indexed token, uint8 decimals);
-
-    event Lending(address indexed lender, uint256 amount, address indexed token, uint8 decimals);
-
-    event UserQuotaIncreaseRequest(address indexed caller, address indexed recipent, uint256 amount, address[] signers);
-
-    event UserQuotaIncreased(address indexed caller, address indexed recipent, uint256 amount);
-
-    event UserQuotaSigned(address indexed signer, address indexed recipent, uint256 amount);
-
-    event TokenAdded(address indexed tokenAddress);
-
-    bytes32 private constant ATTESTATION_RESOLVER = keccak256("ATTESTATION_RESOLVER");
-    uint256 public INTEREST_RATE_PER_DAY = 16308;
-    uint256 private constant _SCALAR = 1e3;
-
-    mapping(address => User) public user;
-    mapping(address => mapping(address => uint256)) private _userTokenBalances;
-
     struct Lend {
         uint256 initialAmount;
         uint256 currentAmount;
@@ -68,9 +39,38 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
         uint256 interestPerShare;
     }
 
+    bytes32 private constant ATTESTATION_RESOLVER = keccak256("ATTESTATION_RESOLVER");
+    uint256 public INTEREST_RATE_PER_DAY = 16308;
+    uint256 private constant _SCALAR = 1e3;
+
+    mapping(address => User) public user;
+    mapping(address => mapping(address => uint256)) private _userTokenBalances;
+
     mapping(address => bool) internal _tokens;
 
     Funds public funds;
+
+    event Funded(address indexed funder, uint256 amount, address indexed token, uint8 decimals);
+
+    event Withdraw(
+        address indexed withdrawer, uint256 amount, uint256 interests, address indexed token, uint8 decimals
+    );
+
+    event Debt(address indexed debtor, uint256 amount, uint256 interests, address indexed token, uint8 decimals);
+
+    event LendRepaid(address indexed lender, uint256 amount, address indexed token, uint8 decimals);
+
+    event Lending(address indexed lender, uint256 amount, address indexed token, uint8 decimals);
+
+    event UserQuotaIncreaseRequest(address indexed caller, address indexed recipent, uint256 amount, address[] signers);
+
+    event UserQuotaIncreased(address indexed caller, address indexed recipent, uint256 amount);
+
+    event UserQuotaSigned(address indexed signer, address indexed recipent, uint256 amount);
+
+    event TokenAdded(address indexed tokenAddress);
+
+    error UnavailableAmount();
 
     constructor(address _attestationResolver) Ownable(msg.sender) {
         _grantRole(ATTESTATION_RESOLVER, _attestationResolver);
@@ -80,9 +80,7 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
         require(_tokens[token], "Token is not in whitelist");
         uint8 decimals = ERC20(token).decimals();
         require(decimals > 0, "Error while obtaining decimals");
-        require(
-            ERC20(token).transferFrom(msg.sender, address(this), amount * 10 ** decimals), "Error while transfer tokens"
-        );
+
         uint256 scaledAmount = amount * _SCALAR;
         if (funds.totalFunds == 0) {
             user[msg.sender].interestShares = scaledAmount;
@@ -97,6 +95,9 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
         user[msg.sender].currentFund += scaledAmount;
         user[msg.sender].lastFund = block.timestamp;
         _userTokenBalances[msg.sender][token] += scaledAmount;
+        require(
+            ERC20(token).transferFrom(msg.sender, address(this), amount * 10 ** decimals), "Error while transfer tokens"
+        );
         emit Funded(msg.sender, amount, token, decimals);
     }
 
@@ -159,10 +160,7 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
         require(currentLend.currentAmount >= scaledAmount, "Invalid amount to pay");
         require(decimals > 0, "Error while obtaining decimals");
         require(_tokens[token], "The token is not whitelisted yet");
-        require(
-            ERC20(token).transferFrom(msg.sender, address(this), scaledAmount * 10 ** (decimals - 3)),
-            "Error while transfering assets"
-        );
+
         currentLend.currentAmount -= scaledAmount;
         funds.interests += interests;
         if (funds.totalInterestShares > 0) {
@@ -172,8 +170,12 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
             currentUser.currentLends[lendIndex] = currentUser.currentLends[currentUser.currentLends.length - 1];
             currentUser.currentLends.pop();
             currentUser.quota += currentLend.initialAmount;
-            emit lendRepaid(msg.sender, amount, token, decimals);
+            emit LendRepaid(msg.sender, amount, token, decimals);
         }
+        require(
+            ERC20(token).transferFrom(msg.sender, address(this), scaledAmount * 10 ** (decimals - 3)),
+            "Error while transfering assets"
+        );
         emit Debt(msg.sender, amount, interests, token, decimals);
     }
 
@@ -232,7 +234,7 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
         user[recipent].quota -= scaledAmount;
     }
 
-    function _increaseQuota(address recipent, uint16 index, address caller) external returns (bool) {
+    function increaseQuota(address recipent, uint16 index, address caller) external returns (bool) {
         require(hasRole(ATTESTATION_RESOLVER, msg.sender), "Caller is not a valid attestation resolver");
 
         bool senderIsSigner;
@@ -269,14 +271,14 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
         return true;
     }
 
-    function _getSpareFunds(address token) external onlyOwner {
+    function getSpareFunds(address token) external onlyOwner {
         uint256 balance = ERC20(token).balanceOf(address(this));
         require(funds.totalFunds == 0, "The total funds must be 0");
         require(balance > 0, "The balance must be greather than 0");
         require(ERC20(token).transfer(msg.sender, balance), "Error while transfering funds");
     }
 
-    function _setInterestPerDay(uint256 interestRate) external onlyOwner {
+    function setInterestPerDay(uint256 interestRate) external onlyOwner {
         INTEREST_RATE_PER_DAY = interestRate;
     }
 
@@ -287,7 +289,8 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
         require(decimals > 0, "Error while obtaining decimals");
         require(amount > 0, "The amount must be greather than 0");
         require(_tokens[token], "The token is not whitelisted yet");
-        require((currentUser.currentFund -= scaledAmount) >= 0, "Invalid amount");
+        require(currentUser.currentFund >= scaledAmount, "Invalid amount");
+        currentUser.currentFund -= scaledAmount;
         funds.totalFunds -= scaledAmount;
 
         require(
