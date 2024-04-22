@@ -47,7 +47,6 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
     mapping(address => mapping(address => uint256)) private _userTokenBalances;
 
     mapping(address => bool) internal _tokens;
-    address[] public tokens;
 
     Funds public funds;
 
@@ -65,7 +64,7 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
 
     event UserQuotaIncreaseRequest(address indexed caller, address indexed recipent, uint256 amount, address[] signers);
 
-    event UserQuotaIncreased(address indexed caller, address indexed recipent, uint256 amount);
+    event UserQuotaChanged(address indexed caller, address indexed recipent, uint256 amount);
 
     event UserQuotaSigned(address indexed signer, address indexed recipent, uint256 amount);
 
@@ -207,7 +206,6 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
 
     function addToken(address tokenAddress) external onlyOwner whenNotPaused {
         _tokens[tokenAddress] = true;
-        tokens.push(tokenAddress);
         emit TokenAdded(tokenAddress);
     }
 
@@ -244,6 +242,7 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
         uint256 scaledAmount = amount * _SCALAR;
         require(user[recipent].quota >= scaledAmount, "Insuficent quota");
         user[recipent].quota -= scaledAmount;
+        emit UserQuotaChanged(msg.sender, recipent, user[recipent].quota);
     }
 
     function increaseQuota(address recipent, uint16 index, address caller) external returns (bool) {
@@ -277,7 +276,7 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
             user[recipent].userQuotaRequests[index] =
                 user[recipent].userQuotaRequests[user[recipent].userQuotaRequests.length - 1];
             user[recipent].userQuotaRequests.pop();
-            emit UserQuotaIncreased(caller, recipent, userQuotaRequest.amount);
+            emit UserQuotaChanged(caller, recipent, user[recipent].quota);
         }
         emit UserQuotaSigned(caller, recipent, userQuotaRequest.amount);
         return true;
