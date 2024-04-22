@@ -47,6 +47,7 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
     mapping(address => mapping(address => uint256)) private _userTokenBalances;
 
     mapping(address => bool) internal _tokens;
+    address[] public tokens;
 
     Funds public funds;
 
@@ -182,20 +183,31 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
     function requestIncreaseQuota(address recipent, uint256 amount, address[] calldata signers)
         external
         whenNotPaused
+        onlyOwner
     {
         uint256 scaledAmount = amount * _SCALAR;
+        address[] memory seenSigners = new address[](signers.length);
+
         require(signers.length >= 3, "Signers must be at leat 3");
         require(signers.length <= 10, "Signers must be least than 10");
         require(amount > 0, "Amount must be greather than 0");
-        user[recipent].userQuotaRequests.push(UserQuotaRequest(amount, 0, new address[](0), new address[](0)));
+        user[recipent].userQuotaRequests.push(UserQuotaRequest(scaledAmount, 0, new address[](0), new address[](0)));
+        uint256 seenCount = 0;
         for (uint8 i; i < signers.length; ++i) {
-            user[recipent].userQuotaRequests[user[recipent].userQuotaRequests.length - 1].signers.push(signers[i]);
+            address signer = signers[i];
+            for (uint8 j = 0; j < seenCount; ++j) {
+                require(signer != seenSigners[j], "Duplicate signer detected");
+            }
+            seenSigners[seenCount] = signer;
+            seenCount++;
+            user[recipent].userQuotaRequests[user[recipent].userQuotaRequests.length - 1].signers.push(signer);
         }
         emit UserQuotaIncreaseRequest(msg.sender, recipent, amount, signers);
     }
 
     function addToken(address tokenAddress) external onlyOwner whenNotPaused {
         _tokens[tokenAddress] = true;
+        tokens.push(tokenAddress);
         emit TokenAdded(tokenAddress);
     }
 
@@ -228,7 +240,7 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
         return user[userAddress].userQuotaRequests;
     }
 
-    function decreaseQuota(address recipent, uint256 amount) external whenNotPaused {
+    function decreaseQuota(address recipent, uint256 amount) external whenNotPaused onlyOwner {
         uint256 scaledAmount = amount * _SCALAR;
         require(user[recipent].quota >= scaledAmount, "Insuficent quota");
         user[recipent].quota -= scaledAmount;
