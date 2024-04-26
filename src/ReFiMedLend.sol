@@ -62,13 +62,15 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
 
     event Lending(address indexed lender, uint256 amount, address indexed token, uint8 decimals);
 
-    event UserQuotaIncreaseRequest(address indexed caller, address indexed recipent, uint256 amount, address[] signers);
+    event UserQuotaIncreaseRequest(
+        address indexed caller, uint16 indexed index, address indexed recipent, uint256 amount, address[] signers
+    );
 
     event UserQuotaChanged(address indexed caller, address indexed recipent, uint256 amount);
 
-    event UserQuotaSigned(address indexed signer, address indexed recipent, uint256 amount);
+    event UserQuotaSigned(address indexed signer, uint16 indexed index, address indexed recipent, uint256 amount);
 
-    event TokenAdded(address indexed tokenAddress);
+    event TokenAdded(address indexed tokenAddress, string symbol, string name);
 
     error UnavailableAmount();
 
@@ -201,12 +203,16 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
             seenCount++;
             user[recipent].userQuotaRequests[user[recipent].userQuotaRequests.length - 1].signers.push(signer);
         }
-        emit UserQuotaIncreaseRequest(msg.sender, recipent, amount, signers);
+        emit UserQuotaIncreaseRequest(
+            msg.sender, uint16(user[recipent].userQuotaRequests.length - 1), recipent, amount, signers
+        );
     }
 
     function addToken(address tokenAddress) external onlyOwner whenNotPaused {
         _tokens[tokenAddress] = true;
-        emit TokenAdded(tokenAddress);
+        string memory symbol = ERC20(tokenAddress).symbol();
+        string memory name = ERC20(tokenAddress).name();
+        emit TokenAdded(tokenAddress, symbol, name);
     }
 
     function getUserLendsPaginated(address userAddress, uint256 page, uint256 pageSize)
@@ -234,8 +240,29 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
         return result;
     }
 
-    function getUserQuotaRequests(address userAddress) external view returns (UserQuotaRequest[] memory) {
-        return user[userAddress].userQuotaRequests;
+    function getUserQuotaRequests(address userAddress, uint256 page, uint256 pageSize)
+        external
+        view
+        returns (UserQuotaRequest[] memory)
+    {
+        UserQuotaRequest[] storage userQuotaRequests = user[userAddress].userQuotaRequests;
+        uint256 totalLends = userQuotaRequests.length;
+        uint256 totalPages = totalLends / pageSize;
+        if (totalLends % pageSize > 0) {
+            totalPages += 1;
+        }
+        require(page <= totalPages, "Invalid page");
+        require(pageSize > 0 && pageSize <= totalPages, "Invalid page size");
+        uint256 startIndex = (page - 1) * pageSize;
+        uint256 endIndex = startIndex + pageSize;
+        if (endIndex > totalLends) {
+            endIndex = totalLends;
+        }
+        UserQuotaRequest[] memory result = new UserQuotaRequest[](endIndex - startIndex);
+        for (uint256 i = startIndex; i < endIndex; ++i) {
+            result[i - startIndex] = userQuotaRequests[i];
+        }
+        return result;
     }
 
     function decreaseQuota(address recipent, uint256 amount) external whenNotPaused onlyOwner {
@@ -245,11 +272,12 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
         emit UserQuotaChanged(msg.sender, recipent, user[recipent].quota);
     }
 
-    function increaseQuota(address recipent, uint16 index, address caller) external returns (bool) {
+    function increaseQuota(address recipent, uint16 index, address caller, uint256 amount) external returns (bool) {
         require(hasRole(ATTESTATION_RESOLVER, msg.sender), "Caller is not a valid attestation resolver");
 
         bool senderIsSigner;
         UserQuotaRequest storage userQuotaRequest = user[recipent].userQuotaRequests[index];
+        require(amount == userQuotaRequest.amount, "The attestation amount does not match the request");
         uint256 scaledAmount = userQuotaRequest.amount * _SCALAR;
         uint256 userQuotaSignersLength = userQuotaRequest.signers.length;
         for (uint8 signerIndex; signerIndex < userQuotaSignersLength; ++signerIndex) {
@@ -273,12 +301,9 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
         userQuotaRequest.successfulSigns += 1;
         if (userQuotaRequest.successfulSigns == 3) {
             user[recipent].quota += scaledAmount;
-            user[recipent].userQuotaRequests[index] =
-                user[recipent].userQuotaRequests[user[recipent].userQuotaRequests.length - 1];
-            user[recipent].userQuotaRequests.pop();
             emit UserQuotaChanged(caller, recipent, user[recipent].quota);
         }
-        emit UserQuotaSigned(caller, recipent, userQuotaRequest.amount);
+        emit UserQuotaSigned(caller, index, recipent, userQuotaRequest.amount);
         return true;
     }
 

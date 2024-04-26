@@ -24,5 +24,5 @@ interface ILendManager {
     function claimDelayedWithdraw(uint256 amount, address token, uint256 timestamp) external;
     function requestLend(uint256 amount, address token, uint256 paymentDue) external;
     function requestIncreaseQuota(address recipient, uint256 amount, address[] calldata signers) external;
-    function increaseQuota(address recipient, uint16 index, address caller) external returns (bool);
+    function increaseQuota(address recipient, uint16 index, address caller, uint256 amount) external returns (bool);
 }

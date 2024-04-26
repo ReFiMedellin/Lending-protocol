@@ -2,7 +2,7 @@ specVersion: 1.0.0
 indexerHints:
   prune: auto
 schema:
-  file: ./schema.graphql
+  file: schema.graphql
 dataSources:
   - kind: ethereum
     name: ReFiMedLend
@@ -33,7 +33,7 @@ dataSources:
         - Withdraw
       abis:
         - name: ReFiMedLend
-          file: ./abis/ReFiMedLend.json
+          file: ReFiMedLend/abis/ReFiMedLend.json
       eventHandlers:
         - event: Debt(indexed address,uint256,uint256,indexed address,uint8)
           handler: handleDebt
@@ -57,7 +57,8 @@ dataSources:
           handler: handleTokenAdded
         - event: Unpaused(address)
           handler: handleUnpaused
-        - event: UserQuotaIncreaseRequest(indexed address,indexed uint16,indexed address,uint256,address[])
+        - event: UserQuotaIncreaseRequest(indexed address,indexed uint16,indexed
+            address,uint256,address[])
           handler: handleUserQuotaIncreaseRequest
         - event: UserQuotaChanged(indexed address,indexed address,uint256)
           handler: handleUserQuotaChanged
@@ -65,4 +66,4 @@ dataSources:
           handler: handleUserQuotaSigned
         - event: Withdraw(indexed address,uint256,uint256,indexed address,uint8)
           handler: handleWithdraw
-      file: ./src/re-fi-med-lend.ts
+      file: ReFiMedLend/ReFiMedLend.wasm

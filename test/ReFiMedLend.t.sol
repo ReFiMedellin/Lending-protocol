@@ -61,9 +61,9 @@ contract ReFiMedLendTest is Test {
         signers[1] = signer2;
         signers[2] = signer3;
         refiMedLend.requestIncreaseQuota(currentUser, amount, signers);
-        refiMedLend.increaseQuota(currentUser, 0, signer1);
-        refiMedLend.increaseQuota(currentUser, 0, signer2);
-        refiMedLend.increaseQuota(currentUser, 0, signer3);
+        refiMedLend.increaseQuota(currentUser, 0, signer1, amount);
+        refiMedLend.increaseQuota(currentUser, 0, signer2, amount);
+        refiMedLend.increaseQuota(currentUser, 0, signer3, amount);
     }
 
     function testFund() public {
@@ -90,18 +90,19 @@ contract ReFiMedLendTest is Test {
         address[] memory signers = new address[](3);
         prepareFunding(1000);
         assertEq(token.balanceOf(address(refiMedLend)), 1000 * 1e18);
-        prepareQuotaIncrease(500);
+        uint256 amount = 500;
+        prepareQuotaIncrease(amount);
         vm.expectEmit(true, true, false, true);
         emit UserQuotaSigned(signer1, currentUser, 500);
-        refiMedLend.increaseQuota(currentUser, 0, signer1);
+        refiMedLend.increaseQuota(currentUser, 0, signer1, amount);
         vm.expectEmit(true, true, false, true);
         emit UserQuotaSigned(signer2, currentUser, 500);
-        refiMedLend.increaseQuota(currentUser, 0, signer2);
+        refiMedLend.increaseQuota(currentUser, 0, signer2, amount);
         vm.expectEmit(true, true, false, true);
         emit UserQuotaIncreased(signer3, currentUser, 500);
         vm.expectEmit(true, true, false, true);
         emit UserQuotaSigned(signer3, currentUser, 500);
-        refiMedLend.increaseQuota(currentUser, 0, signer3);
+        refiMedLend.increaseQuota(currentUser, 0, signer3, amount);
     }
 
     function testMakeLend() public {

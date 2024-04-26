@@ -16,7 +16,7 @@ contract ReFiMedLendResolver is SchemaResolver {
 
     function onAttest(Attestation calldata attestation, uint256 /*value*/ ) internal override returns (bool) {
         (uint256 amount, address recipent, uint16 index) = abi.decode(attestation.data, (uint256, address, uint16));
-        bool success = ILendManager(_lendManager).increaseQuota(recipent, index, attestation.attester);
+        bool success = ILendManager(_lendManager).increaseQuota(recipent, index, attestation.attester, amount);
         if (success) {
             return true;
         }
