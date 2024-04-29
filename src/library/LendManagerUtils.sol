@@ -12,9 +12,8 @@ library Utils {
         for (uint256 i = 0; i < time; i++) {
             compoundInterest = (compoundInterest * (10 ** 8 + interestAccrualRate)) / 10 ** 8;
         }
-        uint256 dummyInterest = compoundInterest;
-        uint256 totalInterest = dummyInterest - currentAmount * 1e8;
-        return (totalInterest / 1e8, dummyInterest / 1e8);
+        uint256 totalInterest = compoundInterest - currentAmount * 1e8;
+        return (totalInterest / 1e8, compoundInterest / 1e8);
     }
 
     function timestampsToDays(uint256 startTimestamp, uint256 finishTimestamp) internal pure returns (uint256) {

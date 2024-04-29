@@ -144,7 +144,7 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
         require(decimals > 0, "Error while obtaining decimals");
         uint256 balance = ERC20(token).balanceOf(address(this));
         require(balance >= amount * 10 ** decimals, "Insuficent liquidity");
-        currentUser.currentLends.push(Lend(scaledAmount, scaledAmount, token, paymentDue, 0));
+        currentUser.currentLends.push(Lend(scaledAmount, scaledAmount, token, paymentDue, block.timestamp));
         currentUser.quota -= scaledAmount;
         require(ERC20(token).transfer(msg.sender, amount * 10 ** decimals), "Error while transfering assets");
         emit Lending(msg.sender, amount, token, decimals);
