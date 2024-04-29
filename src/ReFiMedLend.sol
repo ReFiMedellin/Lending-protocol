@@ -227,7 +227,10 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
             totalPages += 1;
         }
         require(page <= totalPages, "Invalid page");
-        require(pageSize > 0 && pageSize <= totalPages, "Invalid page size");
+        require(pageSize > 0, "Invalid page size");
+        if (pageSize > totalPages) {
+            pageSize = totalPages;
+        }
         uint256 startIndex = (page - 1) * pageSize;
         uint256 endIndex = startIndex + pageSize;
         if (endIndex > totalLends) {
@@ -278,7 +281,7 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
         bool senderIsSigner;
         UserQuotaRequest storage userQuotaRequest = user[recipent].userQuotaRequests[index];
         require(amount == userQuotaRequest.amount, "The attestation amount does not match the request");
-        uint256 scaledAmount = userQuotaRequest.amount * _SCALAR;
+        uint256 scaledAmount = userQuotaRequest.amount;
         uint256 userQuotaSignersLength = userQuotaRequest.signers.length;
         for (uint8 signerIndex; signerIndex < userQuotaSignersLength; ++signerIndex) {
             if (userQuotaRequest.signers[signerIndex] == caller) {
