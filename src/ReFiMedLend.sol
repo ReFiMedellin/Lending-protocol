@@ -14,6 +14,7 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
         address token;
         uint256 expectPaymentDue;
         uint256 latestDebtTimestamp;
+        uint256 nonce;
     }
 
     struct UserQuotaRequest {
@@ -42,6 +43,7 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
     bytes32 private constant ATTESTATION_RESOLVER = keccak256("ATTESTATION_RESOLVER");
     uint256 public INTEREST_RATE_PER_DAY = 16308;
     uint256 private constant _SCALAR = 1e3;
+    uint256 private _lendNonce = 0;
 
     mapping(address => User) public user;
     mapping(address => mapping(address => uint256)) private _userTokenBalances;
@@ -56,11 +58,15 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
         address indexed withdrawer, uint256 amount, uint256 interests, address indexed token, uint8 decimals
     );
 
-    event Debt(address indexed debtor, uint256 amount, uint256 interests, address indexed token, uint8 decimals);
+    event Debt(
+        address indexed debtor, uint256 amount, uint256 interests, address indexed token, uint8 decimals, uint256 nonce
+    );
 
-    event LendRepaid(address indexed lender, uint256 amount, address indexed token, uint8 decimals);
+    event LendRepaid(address indexed lender, uint256 amount, address indexed token, uint8 decimals, uint256 nonce);
 
-    event Lending(address indexed lender, uint256 amount, address indexed token, uint8 decimals);
+    event Lending(
+        address indexed lender, uint256 amount, address indexed token, uint8 decimals, uint256 paymentDue, uint256 nonce
+    );
 
     event UserQuotaIncreaseRequest(
         address indexed caller, uint16 indexed index, address indexed recipent, uint256 amount, address[] signers
@@ -144,10 +150,11 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
         require(decimals > 0, "Error while obtaining decimals");
         uint256 balance = ERC20(token).balanceOf(address(this));
         require(balance >= amount * 10 ** decimals, "Insuficent liquidity");
-        currentUser.currentLends.push(Lend(scaledAmount, scaledAmount, token, paymentDue, block.timestamp));
+        uint256 lendId = _generateLendingId();
+        currentUser.currentLends.push(Lend(scaledAmount, scaledAmount, token, paymentDue, block.timestamp, lendId));
         currentUser.quota -= scaledAmount;
         require(ERC20(token).transfer(msg.sender, amount * 10 ** decimals), "Error while transfering assets");
-        emit Lending(msg.sender, amount, token, decimals);
+        emit Lending(msg.sender, scaledAmount, token, decimals, paymentDue, lendId);
     }
 
     function payDebt(uint256 amount, address token, uint256 lendIndex) external {
@@ -172,13 +179,13 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
             currentUser.currentLends[lendIndex] = currentUser.currentLends[currentUser.currentLends.length - 1];
             currentUser.currentLends.pop();
             currentUser.quota += currentLend.initialAmount;
-            emit LendRepaid(msg.sender, amount, token, decimals);
+            emit LendRepaid(msg.sender, amount, token, decimals, currentLend.nonce);
         }
         require(
             ERC20(token).transferFrom(msg.sender, address(this), scaledAmount * 10 ** (decimals - 3)),
             "Error while transfering assets"
         );
-        emit Debt(msg.sender, amount, interests, token, decimals);
+        emit Debt(msg.sender, amount, interests, token, decimals, currentLend.nonce);
     }
 
     function requestIncreaseQuota(address recipent, uint256 amount, address[] calldata signers)
@@ -337,5 +344,11 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
             "Failed when withdrawing funds"
         );
         emit Withdraw(msg.sender, amount, interests, token, decimals);
+    }
+
+    function _generateLendingId() private returns (uint256) {
+        uint256 random = uint256(keccak256(abi.encodePacked(block.difficulty, block.timestamp, _lendNonce)));
+        _lendNonce++;
+        return random;
     }
 }

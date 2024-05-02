@@ -8,7 +8,7 @@ dataSources:
     name: ReFiMedLend
     network: sepolia
     source:
-      address: "0x4Ff6d608f41c53DB6cf189648B843f5F4cb545d1"
+      address: "0x964C371d28c4EF51e4de70F8378175df733dB119"
       abi: ReFiMedLend
       startBlock: 5750975
     mapping:
@@ -35,13 +35,13 @@ dataSources:
         - name: ReFiMedLend
           file: ./abis/ReFiMedLend.json
       eventHandlers:
-        - event: Debt(indexed address,uint256,uint256,indexed address,uint8)
+        - event: Debt(indexed address,uint256,uint256,indexed address,uint8,uint256)
           handler: handleDebt
         - event: Funded(indexed address,uint256,indexed address,uint8)
           handler: handleFunded
-        - event: LendRepaid(indexed address,uint256,indexed address,uint8)
+        - event: LendRepaid(indexed address,uint256,indexed address,uint8,uint256)
           handler: handleLendRepaid
-        - event: Lending(indexed address,uint256,indexed address,uint8)
+        - event: Lending(indexed address,uint256,indexed address,uint8,uint256,uint256)
           handler: handleLending
         - event: OwnershipTransferred(indexed address,indexed address)
           handler: handleOwnershipTransferred

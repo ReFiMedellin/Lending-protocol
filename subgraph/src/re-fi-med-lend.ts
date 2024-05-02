@@ -52,6 +52,16 @@ export function handleDebt(event: DebtEvent): void {
   entity.blockNumber = event.block.number;
   entity.blockTimestamp = event.block.timestamp;
   entity.transactionHash = event.transaction.hash;
+  entity.nonce = event.params.nonce;
+  let lending = Lending.load(event.params.nonce.toHex());
+  if (lending) {
+    lending.currentAmount = lending.currentAmount.minus(
+      event.params.amount.plus(event.params.interests)
+    );
+    lending.lastDebt = event.block.timestamp;
+    lending.interests = lending.interests.plus(event.params.interests);
+    lending.save();
+  }
 
   entity.save();
 }
@@ -84,20 +94,28 @@ export function handleLendRepaid(event: LendRepaidEvent): void {
   entity.blockNumber = event.block.number;
   entity.blockTimestamp = event.block.timestamp;
   entity.transactionHash = event.transaction.hash;
+  entity.nonce = event.params.nonce;
+  let lending = Lending.load(event.params.nonce.toHex());
+  if (lending) {
+    lending.repaid = true;
+    lending.save();
+  }
 
   entity.save();
 }
 
 export function handleLending(event: LendingEvent): void {
-  let entity = new Lending(
-    event.transaction.hash.concatI32(event.logIndex.toI32())
-  );
+  let entity = new Lending(event.params.nonce.toHex());
   entity.lender = event.params.lender;
   entity.amount = event.params.amount;
   entity.token = event.params.token;
   entity.decimals = event.params.decimals;
-
+  entity.currentAmount = event.params.amount;
+  entity.paymentDue = event.params.paymentDue;
+  entity.lastDebt = event.block.timestamp;
+  entity.repaid = false;
   entity.blockNumber = event.block.number;
+  entity.interests = BigInt.fromI32(0);
   entity.blockTimestamp = event.block.timestamp;
   entity.transactionHash = event.transaction.hash;
 

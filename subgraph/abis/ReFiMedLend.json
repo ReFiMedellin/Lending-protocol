@@ -125,7 +125,8 @@
             "name": "latestDebtTimestamp",
             "type": "uint256",
             "internalType": "uint256"
-          }
+          },
+          { "name": "nonce", "type": "uint256", "internalType": "uint256" }
         ]
       }
     ],
@@ -135,7 +136,9 @@
     "type": "function",
     "name": "getUserQuotaRequests",
     "inputs": [
-      { "name": "userAddress", "type": "address", "internalType": "address" }
+      { "name": "userAddress", "type": "address", "internalType": "address" },
+      { "name": "page", "type": "uint256", "internalType": "uint256" },
+      { "name": "pageSize", "type": "uint256", "internalType": "uint256" }
     ],
     "outputs": [
       {
@@ -190,7 +193,8 @@
     "inputs": [
       { "name": "recipent", "type": "address", "internalType": "address" },
       { "name": "index", "type": "uint16", "internalType": "uint16" },
-      { "name": "caller", "type": "address", "internalType": "address" }
+      { "name": "caller", "type": "address", "internalType": "address" },
+      { "name": "amount", "type": "uint256", "internalType": "uint256" }
     ],
     "outputs": [{ "name": "", "type": "bool", "internalType": "bool" }],
     "stateMutability": "nonpayable"
@@ -369,6 +373,12 @@
         "type": "uint8",
         "indexed": false,
         "internalType": "uint8"
+      },
+      {
+        "name": "nonce",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
       }
     ],
     "anonymous": false
@@ -431,6 +441,12 @@
         "type": "uint8",
         "indexed": false,
         "internalType": "uint8"
+      },
+      {
+        "name": "nonce",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
       }
     ],
     "anonymous": false
@@ -462,6 +478,18 @@
         "type": "uint8",
         "indexed": false,
         "internalType": "uint8"
+      },
+      {
+        "name": "paymentDue",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "nonce",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
       }
     ],
     "anonymous": false

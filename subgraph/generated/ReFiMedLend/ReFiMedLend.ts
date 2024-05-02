@@ -42,6 +42,10 @@ export class Debt__Params {
   get decimals(): i32 {
     return this._event.parameters[4].value.toI32();
   }
+
+  get nonce(): BigInt {
+    return this._event.parameters[5].value.toBigInt();
+  }
 }
 
 export class Funded extends ethereum.Event {
@@ -102,6 +106,10 @@ export class LendRepaid__Params {
   get decimals(): i32 {
     return this._event.parameters[3].value.toI32();
   }
+
+  get nonce(): BigInt {
+    return this._event.parameters[4].value.toBigInt();
+  }
 }
 
 export class Lending extends ethereum.Event {
@@ -131,6 +139,14 @@ export class Lending__Params {
 
   get decimals(): i32 {
     return this._event.parameters[3].value.toI32();
+  }
+
+  get paymentDue(): BigInt {
+    return this._event.parameters[4].value.toBigInt();
+  }
+
+  get nonce(): BigInt {
+    return this._event.parameters[5].value.toBigInt();
   }
 }
 
@@ -479,6 +495,10 @@ export class ReFiMedLend__getUserLendsPaginatedResultValue0Struct extends ethere
   get latestDebtTimestamp(): BigInt {
     return this[4].toBigInt();
   }
+
+  get nonce(): BigInt {
+    return this[5].toBigInt();
+  }
 }
 
 export class ReFiMedLend__getUserQuotaRequestsResultValue0Struct extends ethereum.Tuple {
@@ -652,7 +672,7 @@ export class ReFiMedLend extends ethereum.SmartContract {
   ): Array<ReFiMedLend__getUserLendsPaginatedResultValue0Struct> {
     let result = super.call(
       "getUserLendsPaginated",
-      "getUserLendsPaginated(address,uint256,uint256):((uint256,uint256,address,uint256,uint256)[])",
+      "getUserLendsPaginated(address,uint256,uint256):((uint256,uint256,address,uint256,uint256,uint256)[])",
       [
         ethereum.Value.fromAddress(userAddress),
         ethereum.Value.fromUnsignedBigInt(page),
@@ -672,7 +692,7 @@ export class ReFiMedLend extends ethereum.SmartContract {
   > {
     let result = super.tryCall(
       "getUserLendsPaginated",
-      "getUserLendsPaginated(address,uint256,uint256):((uint256,uint256,address,uint256,uint256)[])",
+      "getUserLendsPaginated(address,uint256,uint256):((uint256,uint256,address,uint256,uint256,uint256)[])",
       [
         ethereum.Value.fromAddress(userAddress),
         ethereum.Value.fromUnsignedBigInt(page),
@@ -690,11 +710,17 @@ export class ReFiMedLend extends ethereum.SmartContract {
 
   getUserQuotaRequests(
     userAddress: Address,
+    page: BigInt,
+    pageSize: BigInt,
   ): Array<ReFiMedLend__getUserQuotaRequestsResultValue0Struct> {
     let result = super.call(
       "getUserQuotaRequests",
-      "getUserQuotaRequests(address):((uint256,uint8,address[],address[])[])",
-      [ethereum.Value.fromAddress(userAddress)],
+      "getUserQuotaRequests(address,uint256,uint256):((uint256,uint8,address[],address[])[])",
+      [
+        ethereum.Value.fromAddress(userAddress),
+        ethereum.Value.fromUnsignedBigInt(page),
+        ethereum.Value.fromUnsignedBigInt(pageSize),
+      ],
     );
 
     return result[0].toTupleArray<ReFiMedLend__getUserQuotaRequestsResultValue0Struct>();
@@ -702,13 +728,19 @@ export class ReFiMedLend extends ethereum.SmartContract {
 
   try_getUserQuotaRequests(
     userAddress: Address,
+    page: BigInt,
+    pageSize: BigInt,
   ): ethereum.CallResult<
     Array<ReFiMedLend__getUserQuotaRequestsResultValue0Struct>
   > {
     let result = super.tryCall(
       "getUserQuotaRequests",
-      "getUserQuotaRequests(address):((uint256,uint8,address[],address[])[])",
-      [ethereum.Value.fromAddress(userAddress)],
+      "getUserQuotaRequests(address,uint256,uint256):((uint256,uint8,address[],address[])[])",
+      [
+        ethereum.Value.fromAddress(userAddress),
+        ethereum.Value.fromUnsignedBigInt(page),
+        ethereum.Value.fromUnsignedBigInt(pageSize),
+      ],
     );
     if (result.reverted) {
       return new ethereum.CallResult();
@@ -740,14 +772,20 @@ export class ReFiMedLend extends ethereum.SmartContract {
     return ethereum.CallResult.fromValue(value[0].toBoolean());
   }
 
-  increaseQuota(recipent: Address, index: i32, caller: Address): boolean {
+  increaseQuota(
+    recipent: Address,
+    index: i32,
+    caller: Address,
+    amount: BigInt,
+  ): boolean {
     let result = super.call(
       "increaseQuota",
-      "increaseQuota(address,uint16,address):(bool)",
+      "increaseQuota(address,uint16,address,uint256):(bool)",
       [
         ethereum.Value.fromAddress(recipent),
         ethereum.Value.fromUnsignedBigInt(BigInt.fromI32(index)),
         ethereum.Value.fromAddress(caller),
+        ethereum.Value.fromUnsignedBigInt(amount),
       ],
     );
 
@@ -758,14 +796,16 @@ export class ReFiMedLend extends ethereum.SmartContract {
     recipent: Address,
     index: i32,
     caller: Address,
+    amount: BigInt,
   ): ethereum.CallResult<boolean> {
     let result = super.tryCall(
       "increaseQuota",
-      "increaseQuota(address,uint16,address):(bool)",
+      "increaseQuota(address,uint16,address,uint256):(bool)",
       [
         ethereum.Value.fromAddress(recipent),
         ethereum.Value.fromUnsignedBigInt(BigInt.fromI32(index)),
         ethereum.Value.fromAddress(caller),
+        ethereum.Value.fromUnsignedBigInt(amount),
       ],
     );
     if (result.reverted) {
@@ -1083,6 +1123,10 @@ export class IncreaseQuotaCall__Inputs {
 
   get caller(): Address {
     return this._call.inputValues[2].value.toAddress();
+  }
+
+  get amount(): BigInt {
+    return this._call.inputValues[3].value.toBigInt();
   }
 }
 

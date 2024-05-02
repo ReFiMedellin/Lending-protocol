@@ -8,6 +8,7 @@ type Debt @entity(immutable: true) {
   blockNumber: BigInt!
   blockTimestamp: BigInt!
   transactionHash: Bytes!
+  nonce: BigInt!# uint256
 }
 
 type Funded @entity(immutable: true) {
@@ -30,14 +31,20 @@ type LendRepaid @entity(immutable: true) {
   blockNumber: BigInt!
   blockTimestamp: BigInt!
   transactionHash: Bytes!
+  nonce: BigInt! # uint256
 }
 
-type Lending @entity(immutable: true) {
-  id: Bytes!
+type Lending @entity(immutable: false) {
+  id: String!
   lender: Bytes! # address
   amount: BigInt! # uint256
   token: Bytes! # address
   decimals: Int! # uint8
+  repaid: Boolean!
+  currentAmount: BigInt!
+  interests: BigInt!
+  lastDebt:BigInt!
+  paymentDue:BigInt!
   blockNumber: BigInt!
   blockTimestamp: BigInt!
   transactionHash: Bytes!
