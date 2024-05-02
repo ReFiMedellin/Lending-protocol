@@ -172,20 +172,26 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
 
         currentLend.currentAmount -= scaledAmount;
         funds.interests += interests;
+        uint256 nonce = currentLend.nonce;
+
         if (funds.totalInterestShares > 0) {
             funds.interestPerShare += (interests * 1e18) / funds.totalInterestShares;
         }
         if (currentLend.currentAmount == 0) {
-            currentUser.currentLends[lendIndex] = currentUser.currentLends[currentUser.currentLends.length - 1];
+            uint256 initialAmount = currentLend.initialAmount;
+            if (currentUser.currentLends.length > 1) {
+                currentUser.currentLends[lendIndex] = currentUser.currentLends[currentUser.currentLends.length - 1];
+            }
             currentUser.currentLends.pop();
-            currentUser.quota += currentLend.initialAmount;
-            emit LendRepaid(msg.sender, amount, token, decimals, currentLend.nonce);
+            currentUser.quota += initialAmount;
+
+            emit LendRepaid(msg.sender, amount, token, decimals, nonce);
         }
         require(
             ERC20(token).transferFrom(msg.sender, address(this), scaledAmount * 10 ** (decimals - 3)),
             "Error while transfering assets"
         );
-        emit Debt(msg.sender, amount, interests, token, decimals, currentLend.nonce);
+        emit Debt(msg.sender, amount, interests, token, decimals, nonce);
     }
 
     function requestIncreaseQuota(address recipent, uint256 amount, address[] calldata signers)
