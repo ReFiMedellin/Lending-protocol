@@ -1,14 +1,15 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: MIT
 pragma solidity 0.8.20;
 
-import "@/library/LendManagerUtils.sol";
-import {ERC20} from "openzeppelin-contracts-upgradeable/lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
+import "./library/LendManagerUtils.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
+/// @custom:oz-upgrades-unsafe-allow external-library-linking
 contract ReFiMedLendUpgradeable is
     Initializable,
     UUPSUpgradeable,
@@ -48,10 +49,11 @@ contract ReFiMedLendUpgradeable is
         uint256 interestPerShare;
     }
 
-    bytes32 private constant ATTESTATION_RESOLVER = keccak256("ATTESTATION_RESOLVER");
-    uint256 public INTEREST_RATE_PER_DAY = 16308;
-    uint256 private constant _SCALAR = 1e3;
-    uint256 private _lendNonce = 0;
+    bytes32 private ATTESTATION_RESOLVER;
+    bytes32 private ADMIN;
+    uint256 public INTEREST_RATE_PER_DAY;
+    uint256 private _SCALAR;
+    uint256 private _lendNonce;
 
     mapping(address => User) public user;
     mapping(address => mapping(address => uint256)) private _userTokenBalances;
@@ -88,10 +90,16 @@ contract ReFiMedLendUpgradeable is
 
     error UnavailableAmount();
 
-    function initialize(address _attestationResolver, address multisig) public initializer {
-        __UUPSUpgradeable_init();
+    function initialize(address _attestationResolver, address multisig, address admin) public initializer {
         __Ownable_init(multisig);
+        __UUPSUpgradeable_init();
+        ATTESTATION_RESOLVER = keccak256("ATTESTATION_RESOLVER");
+        ADMIN = keccak256("ADMIN");
+        INTEREST_RATE_PER_DAY = 16308;
+        _SCALAR = 1e3;
+        _lendNonce = 0;
         _grantRole(ATTESTATION_RESOLVER, _attestationResolver);
+        _grantRole(ADMIN, admin);
     }
 
     function fund(uint256 amount, address token) external whenNotPaused {
@@ -207,7 +215,7 @@ contract ReFiMedLendUpgradeable is
     function requestIncreaseQuota(address recipent, uint256 amount, address[] calldata signers)
         external
         whenNotPaused
-        onlyOwner
+        onlyAdmin
     {
         uint256 scaledAmount = amount * _SCALAR;
         address[] memory seenSigners = new address[](signers.length);
@@ -231,7 +239,7 @@ contract ReFiMedLendUpgradeable is
         );
     }
 
-    function addToken(address tokenAddress) external onlyOwner whenNotPaused {
+    function addToken(address tokenAddress) external onlyAdmin whenNotPaused {
         _tokens[tokenAddress] = true;
         string memory symbol = ERC20(tokenAddress).symbol();
         string memory name = ERC20(tokenAddress).name();
@@ -251,9 +259,6 @@ contract ReFiMedLendUpgradeable is
         }
         require(page <= totalPages, "Invalid page");
         require(pageSize > 0, "Invalid page size");
-        if (pageSize > totalPages) {
-            pageSize = totalPages;
-        }
         uint256 startIndex = (page - 1) * pageSize;
         uint256 endIndex = startIndex + pageSize;
         if (endIndex > totalLends) {
@@ -291,7 +296,7 @@ contract ReFiMedLendUpgradeable is
         return result;
     }
 
-    function decreaseQuota(address recipent, uint256 amount) external whenNotPaused onlyOwner {
+    function decreaseQuota(address recipent, uint256 amount) external whenNotPaused onlyAdmin {
         uint256 scaledAmount = amount * _SCALAR;
         require(user[recipent].quota >= scaledAmount, "Insuficent quota");
         user[recipent].quota -= scaledAmount;
@@ -333,15 +338,25 @@ contract ReFiMedLendUpgradeable is
         return true;
     }
 
-    function getSpareFunds(address token) external onlyOwner {
+    function getSpareFunds(address token) external onlyAdmin {
         uint256 balance = ERC20(token).balanceOf(address(this));
         require(funds.totalFunds == 0, "The total funds must be 0");
         require(balance > 0, "The balance must be greather than 0");
         require(ERC20(token).transfer(msg.sender, balance), "Error while transfering funds");
     }
 
-    function setInterestPerDay(uint256 interestRate) external onlyOwner {
+    function setInterestPerDay(uint256 interestRate) external onlyAdmin {
         INTEREST_RATE_PER_DAY = interestRate;
+    }
+
+    function calculateInterests(uint256 lendIndex) external view returns (uint256 interests, uint256 totalDebt) {
+        User storage currentUser = user[msg.sender];
+        Lend storage currentLend = currentUser.currentLends[lendIndex];
+        uint256 time = Utils.timestampsToDays(currentLend.latestDebtTimestamp, block.timestamp);
+        (uint256 _interests, uint256 _totalDebt) =
+            Utils.calculateInterest(time, INTEREST_RATE_PER_DAY, currentLend.currentAmount);
+
+        return (_interests, _totalDebt);
     }
 
     function _withdraw(uint256 amount, uint256 interests, address token, uint8 decimals) private {
@@ -363,10 +378,15 @@ contract ReFiMedLendUpgradeable is
     }
 
     function _generateLendingId() private returns (uint256) {
-        uint256 random = uint256(keccak256(abi.encodePacked(block.difficulty, block.timestamp, _lendNonce)));
+        uint256 random = uint256(keccak256(abi.encodePacked(block.prevrandao, block.timestamp, _lendNonce)));
         _lendNonce++;
         return random;
     }
 
     function _authorizeUpgrade(address) internal override onlyOwner {}
+
+    modifier onlyAdmin() {
+        require(hasRole(ADMIN, msg.sender), "Caller is not an Admin");
+        _;
+    }
 }

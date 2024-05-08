@@ -12,7 +12,10 @@ contract ReFiMedLendTest is Test {
     event UserQuotaIncreaseRequest(address indexed caller, address indexed recipent, uint256 amount, address[] signers);
     event UserQuotaSigned(address indexed signer, address indexed recipent, uint256 amount);
     event UserQuotaIncreased(address indexed caller, address indexed recipent, uint256 amount);
-    event Lending(address indexed lender, uint256 amount, address indexed token, uint8 decimals);
+    event Lending(
+        address indexed lender, uint256 amount, address indexed token, uint8 decimals, uint256 paymentDue, uint256 nonce
+    );
+
     event lendRepaid(address indexed lender, uint256 amount, address indexed token, uint8 decimals);
     event Debt(address indexed debtor, uint256 amount, uint256 interests, address indexed token, uint8 decimals);
     event Withdraw(
@@ -61,9 +64,9 @@ contract ReFiMedLendTest is Test {
         signers[1] = signer2;
         signers[2] = signer3;
         refiMedLend.requestIncreaseQuota(currentUser, amount, signers);
-        refiMedLend.increaseQuota(currentUser, 0, signer1, amount);
-        refiMedLend.increaseQuota(currentUser, 0, signer2, amount);
-        refiMedLend.increaseQuota(currentUser, 0, signer3, amount);
+        refiMedLend.increaseQuota(currentUser, 0, signer1, amount * 1e3);
+        refiMedLend.increaseQuota(currentUser, 0, signer2, amount * 1e3);
+        refiMedLend.increaseQuota(currentUser, 0, signer3, amount * 1e3);
     }
 
     function testFund() public {
@@ -105,6 +108,13 @@ contract ReFiMedLendTest is Test {
         refiMedLend.increaseQuota(currentUser, 0, signer3, amount);
     }
 
+    function _generateLendingId() private returns (uint256) {
+        uint256 _lendNonce = 0;
+        uint256 random = uint256(keccak256(abi.encodePacked(block.difficulty, block.timestamp, _lendNonce)));
+        _lendNonce++;
+        return random;
+    }
+
     function testMakeLend() public {
         address[] memory signers = new address[](3);
         prepareFunding(1000);
@@ -112,7 +122,8 @@ contract ReFiMedLendTest is Test {
         prepareSignIncreaseQuota(500);
         vm.prank(currentUser);
         vm.expectEmit(true, true, false, true);
-        emit Lending(currentUser, 500, address(token), 18);
+        uint256 nonce = _generateLendingId();
+        emit Lending(currentUser, 500000, address(token), 18, 1001, nonce);
         refiMedLend.requestLend(500, address(token), block.timestamp + 1000);
         assert(token.balanceOf(address(refiMedLend)) == 500 * 1e18);
     }

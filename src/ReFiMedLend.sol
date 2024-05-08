@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: MIT
 pragma solidity 0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -41,6 +41,7 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
     }
 
     bytes32 private constant ATTESTATION_RESOLVER = keccak256("ATTESTATION_RESOLVER");
+    bytes32 private constant ADMIN = keccak256("ADMIN");
     uint256 public INTEREST_RATE_PER_DAY = 16308;
     uint256 private constant _SCALAR = 1e3;
     uint256 private _lendNonce = 0;
@@ -82,6 +83,7 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
 
     constructor(address _attestationResolver) Ownable(msg.sender) {
         _grantRole(ATTESTATION_RESOLVER, _attestationResolver);
+        _grantRole(ADMIN, msg.sender);
     }
 
     function fund(uint256 amount, address token) external whenNotPaused {
@@ -197,7 +199,7 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
     function requestIncreaseQuota(address recipent, uint256 amount, address[] calldata signers)
         external
         whenNotPaused
-        onlyOwner
+        onlyAdmin
     {
         uint256 scaledAmount = amount * _SCALAR;
         address[] memory seenSigners = new address[](signers.length);
@@ -221,7 +223,7 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
         );
     }
 
-    function addToken(address tokenAddress) external onlyOwner whenNotPaused {
+    function addToken(address tokenAddress) external onlyAdmin whenNotPaused {
         _tokens[tokenAddress] = true;
         string memory symbol = ERC20(tokenAddress).symbol();
         string memory name = ERC20(tokenAddress).name();
@@ -241,9 +243,6 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
         }
         require(page <= totalPages, "Invalid page");
         require(pageSize > 0, "Invalid page size");
-        if (pageSize > totalPages) {
-            pageSize = totalPages;
-        }
         uint256 startIndex = (page - 1) * pageSize;
         uint256 endIndex = startIndex + pageSize;
         if (endIndex > totalLends) {
@@ -281,7 +280,7 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
         return result;
     }
 
-    function decreaseQuota(address recipent, uint256 amount) external whenNotPaused onlyOwner {
+    function decreaseQuota(address recipent, uint256 amount) external whenNotPaused onlyAdmin {
         uint256 scaledAmount = amount * _SCALAR;
         require(user[recipent].quota >= scaledAmount, "Insuficent quota");
         user[recipent].quota -= scaledAmount;
@@ -323,15 +322,25 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
         return true;
     }
 
-    function getSpareFunds(address token) external onlyOwner {
+    function getSpareFunds(address token) external onlyAdmin {
         uint256 balance = ERC20(token).balanceOf(address(this));
         require(funds.totalFunds == 0, "The total funds must be 0");
         require(balance > 0, "The balance must be greather than 0");
         require(ERC20(token).transfer(msg.sender, balance), "Error while transfering funds");
     }
 
-    function setInterestPerDay(uint256 interestRate) external onlyOwner {
+    function setInterestPerDay(uint256 interestRate) external onlyAdmin {
         INTEREST_RATE_PER_DAY = interestRate;
+    }
+
+    function calculateInterests(uint256 lendIndex) external view returns (uint256 interests, uint256 totalDebt) {
+        User storage currentUser = user[msg.sender];
+        Lend storage currentLend = currentUser.currentLends[lendIndex];
+        uint256 time = Utils.timestampsToDays(currentLend.latestDebtTimestamp, block.timestamp);
+        (uint256 _interests, uint256 _totalDebt) =
+            Utils.calculateInterest(time, INTEREST_RATE_PER_DAY, currentLend.currentAmount);
+
+        return (_interests, _totalDebt);
     }
 
     function _withdraw(uint256 amount, uint256 interests, address token, uint8 decimals) private {
@@ -353,8 +362,13 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
     }
 
     function _generateLendingId() private returns (uint256) {
-        uint256 random = uint256(keccak256(abi.encodePacked(block.difficulty, block.timestamp, _lendNonce)));
+        uint256 random = uint256(keccak256(abi.encodePacked(block.prevrandao, block.timestamp, _lendNonce)));
         _lendNonce++;
         return random;
+    }
+
+    modifier onlyAdmin() {
+        require(hasRole(ADMIN, msg.sender), "Caller is not an Admin");
+        _;
     }
 }
