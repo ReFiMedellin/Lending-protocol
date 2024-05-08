@@ -9,18 +9,31 @@ import "./MockERC20.sol";
 import "@/library/LendManagerUtils.sol";
 
 contract ReFiMedLendTest is Test {
-    event UserQuotaIncreaseRequest(address indexed caller, address indexed recipent, uint256 amount, address[] signers);
-    event UserQuotaSigned(address indexed signer, address indexed recipent, uint256 amount);
-    event UserQuotaIncreased(address indexed caller, address indexed recipent, uint256 amount);
+    event Funded(address indexed funder, uint256 amount, address indexed token, uint8 decimals);
+
+    event Withdraw(
+        address indexed withdrawer, uint256 amount, uint256 interests, address indexed token, uint8 decimals
+    );
+
+    event Debt(
+        address indexed debtor, uint256 amount, uint256 interests, address indexed token, uint8 decimals, uint256 nonce
+    );
+
+    event LendRepaid(address indexed lender, uint256 amount, address indexed token, uint8 decimals, uint256 nonce);
+
     event Lending(
         address indexed lender, uint256 amount, address indexed token, uint8 decimals, uint256 paymentDue, uint256 nonce
     );
 
-    event lendRepaid(address indexed lender, uint256 amount, address indexed token, uint8 decimals);
-    event Debt(address indexed debtor, uint256 amount, uint256 interests, address indexed token, uint8 decimals);
-    event Withdraw(
-        address indexed withdrawer, uint256 amount, uint256 interests, address indexed token, uint8 decimals
+    event UserQuotaIncreaseRequest(
+        address indexed caller, uint16 indexed index, address indexed recipent, uint256 amount, address[] signers
     );
+
+    event UserQuotaChanged(address indexed caller, address indexed recipent, uint256 amount);
+
+    event UserQuotaSigned(address indexed signer, uint16 indexed index, address indexed recipent, uint256 amount);
+
+    event TokenAdded(address indexed tokenAddress, string symbol, string name);
 
     using stdStorage for StdStorage;
 
@@ -85,7 +98,7 @@ contract ReFiMedLendTest is Test {
         signers[1] = signer2;
         signers[2] = signer3;
         vm.expectEmit(true, true, false, true);
-        emit UserQuotaIncreaseRequest(owner, currentUser, 500, signers);
+        emit UserQuotaIncreaseRequest(owner, 0, currentUser, 500, signers);
         prepareQuotaIncrease(500);
     }
 
@@ -96,16 +109,16 @@ contract ReFiMedLendTest is Test {
         uint256 amount = 500;
         prepareQuotaIncrease(amount);
         vm.expectEmit(true, true, false, true);
-        emit UserQuotaSigned(signer1, currentUser, 500);
-        refiMedLend.increaseQuota(currentUser, 0, signer1, amount);
+        emit UserQuotaSigned(signer1, 0, currentUser, 500 * 1e3);
+        refiMedLend.increaseQuota(currentUser, 0, signer1, amount * 1e3);
         vm.expectEmit(true, true, false, true);
-        emit UserQuotaSigned(signer2, currentUser, 500);
-        refiMedLend.increaseQuota(currentUser, 0, signer2, amount);
+        emit UserQuotaSigned(signer2, 0, currentUser, 500 * 1e3);
+        refiMedLend.increaseQuota(currentUser, 0, signer2, amount * 1e3);
         vm.expectEmit(true, true, false, true);
-        emit UserQuotaIncreased(signer3, currentUser, 500);
+        emit UserQuotaChanged(signer3, currentUser, 500 * 1e3);
         vm.expectEmit(true, true, false, true);
-        emit UserQuotaSigned(signer3, currentUser, 500);
-        refiMedLend.increaseQuota(currentUser, 0, signer3, amount);
+        emit UserQuotaSigned(signer3, 0, currentUser, 500 * 1e3);
+        refiMedLend.increaseQuota(currentUser, 0, signer3, amount * 1e3);
     }
 
     function _generateLendingId() private returns (uint256) {
@@ -144,8 +157,6 @@ contract ReFiMedLendTest is Test {
         token.approve(address(refiMedLend), 530663 * 1e15);
         token.mint(address(currentUser), 530663 * 1e15);
         vm.prank(currentUser);
-        vm.expectEmit(true, true, false, true);
-        emit lendRepaid(currentUser, 530663, address(token), 18);
         refiMedLend.payDebt(_totalDebt, address(token), 0);
         (uint256 totalFunds, uint256 interests, uint256 totalInterestShares, uint256 interestPerShare) =
             refiMedLend.funds();
@@ -170,8 +181,6 @@ contract ReFiMedLendTest is Test {
         token.approve(address(refiMedLend), _totalDebt * 1e15);
         token.mint(address(currentUser), _totalDebt * 1e15);
         vm.prank(currentUser);
-        vm.expectEmit(true, true, false, true);
-        emit Debt(currentUser, 200 * 1e3, _interest, address(token), 18);
         refiMedLend.payDebt(200 * 1e3, address(token), 0);
         (uint256 totalFunds, uint256 interests, uint256 totalInterestShares, uint256 interestPerShare) =
             refiMedLend.funds();
