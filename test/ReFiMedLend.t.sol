@@ -149,9 +149,9 @@ contract ReFiMedLendTest is Test {
         vm.prank(currentUser);
         refiMedLend.requestLend(500, address(token), block.timestamp + 1000);
         assert(token.balanceOf(address(refiMedLend)) == 500 * 1e18);
-        uint256 time = Utils.timestampsToDays(block.timestamp, block.timestamp + 31556926);
+        uint256 time = LendManagerUtils.timestampsToDays(block.timestamp, block.timestamp + 31556926);
         (uint256 _interest, uint256 _totalDebt) =
-            Utils.calculateInterest(time, refiMedLend.INTEREST_RATE_PER_DAY(), 500 * _SCALAR);
+            LendManagerUtils.calculateInterest(time, refiMedLend.INTEREST_RATE_PER_DAY(), 500 * _SCALAR);
         vm.warp(31556927);
         vm.prank(currentUser);
         token.approve(address(refiMedLend), 530663 * 1e15);
@@ -172,9 +172,9 @@ contract ReFiMedLendTest is Test {
         vm.prank(currentUser);
         refiMedLend.requestLend(500, address(token), block.timestamp + 1000);
         assert(token.balanceOf(address(refiMedLend)) == 500 * 1e18);
-        uint256 time = Utils.timestampsToDays(block.timestamp, block.timestamp + 31556926);
+        uint256 time = LendManagerUtils.timestampsToDays(block.timestamp, block.timestamp + 31556926);
         (uint256 _interest, uint256 _totalDebt) =
-            Utils.calculateInterest(time, refiMedLend.INTEREST_RATE_PER_DAY(), 500 * _SCALAR);
+            LendManagerUtils.calculateInterest(time, refiMedLend.INTEREST_RATE_PER_DAY(), 500 * _SCALAR);
         console.log("timesTamp: ", block.timestamp);
         vm.warp(31556927);
         vm.prank(currentUser);
@@ -196,9 +196,9 @@ contract ReFiMedLendTest is Test {
         vm.prank(currentUser);
         refiMedLend.requestLend(500, address(token), block.timestamp + 1000);
 
-        uint256 time = Utils.timestampsToDays(block.timestamp, block.timestamp + 31556926);
+        uint256 time = LendManagerUtils.timestampsToDays(block.timestamp, block.timestamp + 31556926);
         (uint256 _interest, uint256 _totalDebt) =
-            Utils.calculateInterest(time, refiMedLend.INTEREST_RATE_PER_DAY(), 500 * _SCALAR);
+            LendManagerUtils.calculateInterest(time, refiMedLend.INTEREST_RATE_PER_DAY(), 500 * _SCALAR);
         console.log("timesTamp: ", block.timestamp);
         vm.warp(31556927);
         vm.prank(currentUser);
@@ -236,9 +236,9 @@ contract ReFiMedLendTest is Test {
 
         vm.prank(currentUser);
         refiMedLend.requestLend(1300, address(token), block.timestamp + 1000);
-        uint256 time = Utils.timestampsToDays(block.timestamp, block.timestamp + 31556926);
+        uint256 time = LendManagerUtils.timestampsToDays(block.timestamp, block.timestamp + 31556926);
         (uint256 _interest, uint256 _totalDebt) =
-            Utils.calculateInterest(time, refiMedLend.INTEREST_RATE_PER_DAY(), 1300 * _SCALAR);
+            LendManagerUtils.calculateInterest(time, refiMedLend.INTEREST_RATE_PER_DAY(), 1300 * _SCALAR);
         vm.warp(31556927);
         vm.prank(currentUser);
         token.approve(address(refiMedLend), _totalDebt * 1e15);

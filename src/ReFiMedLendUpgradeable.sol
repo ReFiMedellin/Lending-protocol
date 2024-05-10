@@ -132,7 +132,7 @@ contract ReFiMedLendUpgradeable is
         uint256 scaledAmount = amount * _SCALAR;
         User storage currentUser = user[msg.sender];
         uint256 lastFund = currentUser.lastFund;
-        uint256 daysSinceLastFund = Utils.timestampsToDays(lastFund, block.timestamp);
+        uint256 daysSinceLastFund = LendManagerUtils.timestampsToDays(lastFund, block.timestamp);
         require(daysSinceLastFund >= 180, "The user must wait at least 180 days to withdraw funds");
         require(currentUser.currentFund >= scaledAmount, "Insuficent funds");
         require(_userTokenBalances[msg.sender][token] >= scaledAmount, "Insufficient token balance");
@@ -152,7 +152,7 @@ contract ReFiMedLendUpgradeable is
         uint256 scaledAmount = amount * _SCALAR;
         User storage currentUser = user[msg.sender];
         uint256 lastFund = currentUser.lastFund;
-        uint256 daysSinceLastFund = Utils.timestampsToDays(lastFund, block.timestamp);
+        uint256 daysSinceLastFund = LendManagerUtils.timestampsToDays(lastFund, block.timestamp);
         require(daysSinceLastFund >= 180, "The user must wait at least 180 days to withdraw funds");
         require(currentUser.currentFund >= scaledAmount, "Insuficent funds");
         require(_userTokenBalances[msg.sender][token] >= scaledAmount, "Insufficient token balance");
@@ -179,9 +179,9 @@ contract ReFiMedLendUpgradeable is
         User storage currentUser = user[msg.sender];
         Lend storage currentLend = currentUser.currentLends[lendIndex];
         uint256 scaledAmount = amount;
-        uint256 time = Utils.timestampsToDays(currentLend.latestDebtTimestamp, block.timestamp);
+        uint256 time = LendManagerUtils.timestampsToDays(currentLend.latestDebtTimestamp, block.timestamp);
         (uint256 interests, uint256 totalDebt) =
-            Utils.calculateInterest(time, INTEREST_RATE_PER_DAY, currentLend.currentAmount);
+            LendManagerUtils.calculateInterest(time, INTEREST_RATE_PER_DAY, currentLend.currentAmount);
         uint8 decimals = ERC20(token).decimals();
         currentLend.currentAmount += interests;
         require(currentLend.currentAmount >= scaledAmount, "Invalid amount to pay");
@@ -352,9 +352,9 @@ contract ReFiMedLendUpgradeable is
     function calculateInterests(uint256 lendIndex) external view returns (uint256 interests, uint256 totalDebt) {
         User storage currentUser = user[msg.sender];
         Lend storage currentLend = currentUser.currentLends[lendIndex];
-        uint256 time = Utils.timestampsToDays(currentLend.latestDebtTimestamp, block.timestamp);
+        uint256 time = LendManagerUtils.timestampsToDays(currentLend.latestDebtTimestamp, block.timestamp);
         (uint256 _interests, uint256 _totalDebt) =
-            Utils.calculateInterest(time, INTEREST_RATE_PER_DAY, currentLend.currentAmount);
+            LendManagerUtils.calculateInterest(time, INTEREST_RATE_PER_DAY, currentLend.currentAmount);
 
         return (_interests, _totalDebt);
     }
@@ -381,6 +381,11 @@ contract ReFiMedLendUpgradeable is
         uint256 random = uint256(keccak256(abi.encodePacked(block.prevrandao, block.timestamp, _lendNonce)));
         _lendNonce++;
         return random;
+    }
+
+    function transferAdmin(address newAdmin) external onlyAdmin {
+        _grantRole(ADMIN, newAdmin);
+        _revokeRole(ADMIN, msg.sender);
     }
 
     function _authorizeUpgrade(address) internal override onlyOwner {}

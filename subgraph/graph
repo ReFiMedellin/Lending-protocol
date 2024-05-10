@@ -1,0 +1,69 @@
+specVersion: 1.0.0
+indexerHints:
+  prune: auto
+schema:
+  file: ./schema.graphql
+dataSources:
+  - kind: ethereum
+    name: ReFiMedLend
+    network: optimism
+    source:
+      address: '0x32bb8Fe3DBFe95b5005628f312588eCDc037F75f'
+      abi: ReFiMedLend
+      startBlock: 5750975
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.7
+      language: wasm/assemblyscript
+      entities:
+        - Debt
+        - Funded
+        - LendRepaid
+        - Lending
+        - OwnershipTransferred
+        - Paused
+        - RoleAdminChanged
+        - RoleGranted
+        - RoleRevoked
+        - TokenAdded
+        - Unpaused
+        - UserQuotaIncreaseRequest
+        - UserQuotaIncreased
+        - UserQuotaSigned
+        - Withdraw
+      abis:
+        - name: ReFiMedLend
+          file: ./abis/ReFiMedLend.json
+      eventHandlers:
+        - event: Debt(indexed address,uint256,uint256,indexed address,uint8,uint256)
+          handler: handleDebt
+        - event: Funded(indexed address,uint256,indexed address,uint8)
+          handler: handleFunded
+        - event: LendRepaid(indexed address,uint256,indexed address,uint8,uint256)
+          handler: handleLendRepaid
+        - event: Lending(indexed address,uint256,indexed address,uint8,uint256,uint256)
+          handler: handleLending
+        - event: OwnershipTransferred(indexed address,indexed address)
+          handler: handleOwnershipTransferred
+        - event: Paused(address)
+          handler: handlePaused
+        - event: RoleAdminChanged(indexed bytes32,indexed bytes32,indexed bytes32)
+          handler: handleRoleAdminChanged
+        - event: RoleGranted(indexed bytes32,indexed address,indexed address)
+          handler: handleRoleGranted
+        - event: RoleRevoked(indexed bytes32,indexed address,indexed address)
+          handler: handleRoleRevoked
+        - event: TokenAdded(indexed address,string,string)
+          handler: handleTokenAdded
+        - event: Unpaused(address)
+          handler: handleUnpaused
+        - event: UserQuotaIncreaseRequest(indexed address,indexed uint16,indexed
+            address,uint256,address[])
+          handler: handleUserQuotaIncreaseRequest
+        - event: UserQuotaChanged(indexed address,indexed address,uint256)
+          handler: handleUserQuotaChanged
+        - event: UserQuotaSigned(indexed address,indexed uint16,indexed address,uint256)
+          handler: handleUserQuotaSigned
+        - event: Withdraw(indexed address,uint256,uint256,indexed address,uint8)
+          handler: handleWithdraw
+      file: ./src/re-fi-med-lend.ts

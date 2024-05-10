@@ -4,5 +4,23 @@
       "address": "0x58b0Accf3aC68f4AFE2848d1154F6CF8a8a8e0bD",
       "startBlock": 5750975
     }
+  },
+  "celo": {
+    "ReFiMedLend": {
+      "address": "0x505E65f7D854d4a564b5486d59c91E1DfE627579",
+      "startBlock": 25500000
+    }
+  },
+  "polygon": {
+    "ReFiMedLend": {
+      "address": "0xA527d8478dA1688541E93b87Cbe790539fb4c285",
+      "startBlock": 56600000
+    }
+  },
+  "optimism": {
+    "ReFiMedLend": {
+      "address": "0x32bb8Fe3DBFe95b5005628f312588eCDc037F75f",
+      "startBlock": 119861000
+    }
   }
 }

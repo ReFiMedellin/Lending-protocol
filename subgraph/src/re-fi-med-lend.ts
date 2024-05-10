@@ -55,9 +55,8 @@ export function handleDebt(event: DebtEvent): void {
   entity.nonce = event.params.nonce;
   let lending = Lending.load(event.params.nonce.toHex());
   if (lending) {
-    lending.currentAmount = lending.currentAmount.minus(
-      event.params.amount.plus(event.params.interests)
-    );
+    lending.currentAmount = lending.currentAmount.minus(event.params.amount);
+    lending.currentAmount = lending.currentAmount.plus(event.params.interests);
     lending.lastDebt = event.block.timestamp;
     lending.interests = lending.interests.plus(event.params.interests);
     lending.save();

@@ -10,13 +10,13 @@ contract Deploy is Script {
     function run() external {
         vm.startBroadcast();
 
-        ReFiMedLendResolver lendResolver = new ReFiMedLendResolver(IEAS(0xC2679fBD37d54388Ce493F1DB75320D236e1815e));
+        ReFiMedLendResolver lendResolver = new ReFiMedLendResolver(IEAS(0x4200000000000000000000000000000000000021));
         console.log("LendResolver address: ", address(lendResolver));
 
-        ReFiMedLend lendManager = new ReFiMedLend(address(lendResolver));
-        console.log("LendManager address: ", address(lendManager));
+        // ReFiMedLend lendManager = new ReFiMedLend(address(lendResolver));
+        // console.log("LendManager address: ", address(lendManager));
 
-        lendResolver.setLendManager(address(lendManager));
+        // lendResolver.setLendManager(address(lendManager));
 
         vm.stopBroadcast();
     }
