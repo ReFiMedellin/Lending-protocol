@@ -152,8 +152,6 @@ contract ReFiMedLendUpgradeable is
         uint256 scaledAmount = amount * _SCALAR;
         User storage currentUser = user[msg.sender];
         uint256 lastFund = currentUser.lastFund;
-        uint256 daysSinceLastFund = LendManagerUtils.timestampsToDays(lastFund, block.timestamp);
-        require(daysSinceLastFund >= 180, "The user must wait at least 180 days to withdraw funds");
         require(currentUser.currentFund >= scaledAmount, "Insuficent funds");
         require(_userTokenBalances[msg.sender][token] >= scaledAmount, "Insufficient token balance");
         _userTokenBalances[msg.sender][token] -= scaledAmount;
