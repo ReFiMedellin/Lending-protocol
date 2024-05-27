@@ -397,4 +397,8 @@ contract ReFiMedLendUpgradeable is
         require(hasRole(ADMIN, msg.sender), "Caller is not an Admin");
         _;
     }
+
+    function removeToken(address tokenAddress) external onlyAdmin {
+        _tokens[tokenAddress] = false;
+    }
 }
