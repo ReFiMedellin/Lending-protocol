@@ -143,6 +143,8 @@ contract ReFiMedLendUpgradeable is
         funds.interests -= owedInterest;
         if (funds.totalInterestShares > 0) {
             funds.interestPerShare = (funds.interests * 1e18) / funds.totalInterestShares;
+        } else {
+            funds.interestPerShare = funds.interests;
         }
         _withdraw(amount, owedInterest, token, decimals);
     }
@@ -159,6 +161,8 @@ contract ReFiMedLendUpgradeable is
         currentUser.interestShares = 0;
         if (funds.totalInterestShares > 0) {
             funds.interestPerShare = (funds.interests * 1e18) / funds.totalInterestShares;
+        } else {
+            funds.interestPerShare = funds.interests;
         }
         _withdraw(amount, 0, token, decimals);
     }
@@ -197,6 +201,8 @@ contract ReFiMedLendUpgradeable is
 
         if (funds.totalInterestShares > 0) {
             funds.interestPerShare += (interests * 1e18) / funds.totalInterestShares;
+        } else {
+            funds.interestPerShare += interests;
         }
         if (currentLend.currentAmount == 0) {
             uint256 initialAmount = currentLend.initialAmount;

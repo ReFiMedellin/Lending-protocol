@@ -58,6 +58,26 @@ contract ReFiMedLendTest is Test {
         token.mint(address(funder), 10000 * 1e18);
     }
 
+    function getUserInterestShares(address user) internal returns (uint256) {
+        (uint256 ownerQuota, uint256 ownerCurrentFund, uint256 ownerInterestShares, uint256 ownerLastFund) =
+            refiMedLend.user(user);
+        console.log("ownerQuota: ", ownerQuota);
+        console.log("ownerCurrentFund: ", ownerCurrentFund);
+        console.log("ownerInterestShares: ", ownerInterestShares);
+        console.log("ownerLastFund: ", ownerLastFund);
+        return ownerInterestShares;
+    }
+
+    function getGlobalInterestsPerShare() internal returns (uint256) {
+        (uint256 totalFunds, uint256 interests, uint256 totalInterestShares, uint256 interestPerShare) =
+            refiMedLend.funds();
+        console.log("totalFunds", totalFunds);
+        console.log("interests", interests);
+        console.log("totalInterestShares", totalInterestShares);
+        console.log("interestPerShare", interestPerShare);
+        return (interests * 1e18) / totalInterestShares;
+    }
+
     function prepareFunding(uint256 amount) internal {
         token.approve(address(refiMedLend), amount * 1e18);
         refiMedLend.fund(amount, address(token));
@@ -316,5 +336,138 @@ contract ReFiMedLendTest is Test {
         assertEq(totalFunds, 0);
         assertEq(interests, 0);
         assertEq(totalInterestShares, 0);
+    }
+
+    function testWithdrawWithoutInterestsAndThenFundAgain() public {
+        vm.startPrank(owner);
+        prepareFunding(1300);
+        vm.stopPrank();
+
+        // Generar intereses
+        prepareSignIncreaseQuota(1300);
+        vm.prank(currentUser);
+        refiMedLend.requestLend(1300, address(token), block.timestamp + 1000);
+        uint256 time = LendManagerUtils.timestampsToDays(block.timestamp, block.timestamp + 31556926);
+        (uint256 _interest, uint256 _totalDebt) =
+            LendManagerUtils.calculateInterest(time, refiMedLend.INTEREST_RATE_PER_DAY(), 1300 * _SCALAR);
+        console.log("interest", _interest);
+        vm.warp(31556927);
+        vm.prank(currentUser);
+        token.approve(address(refiMedLend), _totalDebt * 1e15);
+        token.mint(address(currentUser), _totalDebt * 1e15);
+        vm.prank(currentUser);
+        refiMedLend.payDebt(_totalDebt, address(token), 0);
+
+        // Realizar un retiro sin intereses
+        vm.prank(owner);
+        vm.expectEmit(true, true, false, true);
+        emit Withdraw(address(owner), 1300, 0, address(token), 18);
+        refiMedLend.withdrawWithoutInterests(1300, address(token));
+        assertEq(token.balanceOf(address(refiMedLend)), _interest * 1e15);
+
+        // Verificar que totalInterestShares y totalFunds sean 0
+        (uint256 totalFunds, uint256 interests, uint256 totalInterestShares, uint256 interestPerShare) =
+            refiMedLend.funds();
+        assertEq(totalFunds, 0);
+        assertEq(interests, _interest);
+        assertEq(totalInterestShares, 0);
+
+        // Fondear nuevamente
+        vm.startPrank(owner);
+        prepareFunding(1000);
+        vm.stopPrank();
+        assertEq(token.balanceOf(address(refiMedLend)), (1000000 + _interest) * 1e15);
+
+        (totalFunds, interests, totalInterestShares, interestPerShare) = refiMedLend.funds();
+        (uint256 ownerQuota, uint256 ownerCurrentFund, uint256 ownerInterestShares, uint256 ownerLastFund) =
+            refiMedLend.user(address(owner));
+        assertEq(totalFunds, 1000 * _SCALAR);
+        assertEq(totalInterestShares, 1000 * _SCALAR);
+
+        // Realizar otro retiro sin intereses
+        vm.warp(block.timestamp + 180 days);
+        vm.expectEmit(true, true, false, true);
+        emit Withdraw(address(owner), 1000, _interest, address(token), 18);
+        console.log("interestPerShare", interestPerShare);
+        console.log("totalInterestShares", totalInterestShares);
+        console.log("ownerInterestShares", ownerInterestShares);
+
+        vm.prank(owner);
+        refiMedLend.withdraw(1000, address(token));
+        assertEq(token.balanceOf(address(refiMedLend)), 0);
+        (totalFunds, interests, totalInterestShares, interestPerShare) = refiMedLend.funds();
+        assertEq(totalFunds, 0);
+        assertEq(interests, 0);
+        assertEq(totalInterestShares, 0);
+    }
+
+    function testMultiplePartialWithdrawals() public {
+        prepareFunding(1500);
+        vm.startPrank(funder);
+        prepareFunding(1500);
+        vm.stopPrank();
+        assertEq(token.balanceOf(address(refiMedLend)), 3000 * 1e18);
+        // Simulate generating interests
+        prepareSignIncreaseQuota(1000);
+        vm.prank(currentUser);
+        refiMedLend.requestLend(1000, address(token), block.timestamp + 1000);
+        uint256 time = LendManagerUtils.timestampsToDays(block.timestamp, block.timestamp + 31556926);
+        (uint256 _interest, uint256 _totalDebt) =
+            LendManagerUtils.calculateInterest(time, refiMedLend.INTEREST_RATE_PER_DAY(), 1000 * _SCALAR);
+        vm.warp(31556927);
+        vm.prank(currentUser);
+        token.approve(address(refiMedLend), _totalDebt * 1e15);
+        token.mint(address(currentUser), _totalDebt * 1e15);
+        vm.prank(currentUser);
+        refiMedLend.payDebt(_totalDebt, address(token), 0);
+        (uint256 totalFunds, uint256 interests, uint256 totalInterestShares, uint256 interestPerShare) =
+            refiMedLend.funds();
+
+        // First partial withdrawal
+
+        uint256 partialWithdrawAmount1 = 1000;
+        uint256 expectedInterestShares1 = (
+            (
+                (getUserInterestShares(address(owner)) * 1e18) * ((partialWithdrawAmount1 * 1e3) * 1e18)
+                    / (1500000 * 1e18)
+            ) / 1e18
+        );
+        uint256 expectedInterest1 = expectedInterestShares1 * getGlobalInterestsPerShare() / 1e18;
+        vm.prank(owner);
+        vm.expectEmit(true, true, false, true);
+        console.log("balance before", token.balanceOf(address(refiMedLend)));
+        emit Withdraw(address(owner), partialWithdrawAmount1, expectedInterest1, address(token), 18);
+        refiMedLend.withdraw(partialWithdrawAmount1, address(token));
+        console.log("Expected interest 1: ", expectedInterest1);
+        assertEq(
+            token.balanceOf(address(refiMedLend)),
+            ((3000000 + _interest) * 1e15) - (((partialWithdrawAmount1 * 1e3) + (expectedInterest1)) * 1e15)
+        );
+
+        uint256 partialWithdrawAmount2 = 500;
+        uint256 expectedInterestShares2 = (
+            ((getUserInterestShares(address(owner)) * 1e18) * ((partialWithdrawAmount2 * 1e3) * 1e18) / (500000 * 1e18))
+                / 1e18
+        );
+        uint256 expectedInterest2 = expectedInterestShares2 * getGlobalInterestsPerShare() / 1e18;
+        console.log("interestPerShare", getGlobalInterestsPerShare());
+        vm.prank(owner);
+        vm.expectEmit(true, true, false, true);
+        emit Withdraw(address(owner), partialWithdrawAmount2, expectedInterest2, address(token), 18);
+        refiMedLend.withdraw(partialWithdrawAmount2, address(token));
+        assertEq(
+            token.balanceOf(address(refiMedLend)),
+            ((3000000 + _interest) * 1e15)
+                - (
+                    (((partialWithdrawAmount1 * 1e3) + (expectedInterest1)) * 1e15)
+                        + (((partialWithdrawAmount2 * 1e3) + (expectedInterest2)) * 1e15)
+                )
+        );
+
+        (totalFunds, interests, totalInterestShares, interestPerShare) = refiMedLend.funds();
+        console.log("totalFunds", totalFunds);
+        assertEq(totalFunds, 1500 * 1e3);
+        assertEq(interests, _interest / 2);
+        assertEq(totalInterestShares, 1500 * 1e3);
     }
 }
