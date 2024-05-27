@@ -113,7 +113,7 @@ contract ReFiMedLendUpgradeable is
             funds.totalInterestShares = scaledAmount;
             funds.totalFunds = scaledAmount;
         } else {
-            uint256 userShares = funds.totalInterestShares / funds.totalFunds;
+            uint256 userShares = (scaledAmount * funds.totalInterestShares) / funds.totalFunds;
             user[msg.sender].interestShares += userShares;
             funds.totalInterestShares += userShares;
             funds.totalFunds += scaledAmount;
@@ -131,21 +131,23 @@ contract ReFiMedLendUpgradeable is
         uint8 decimals = ERC20(token).decimals();
         uint256 scaledAmount = amount * _SCALAR;
         User storage currentUser = user[msg.sender];
+        if (funds.totalInterestShares > 0) {
+            funds.interestPerShare = (funds.interests * 1e18) / funds.totalInterestShares;
+        }
         uint256 lastFund = currentUser.lastFund;
         uint256 daysSinceLastFund = LendManagerUtils.timestampsToDays(lastFund, block.timestamp);
         require(daysSinceLastFund >= 180, "The user must wait at least 180 days to withdraw funds");
         require(currentUser.currentFund >= scaledAmount, "Insuficent funds");
         require(_userTokenBalances[msg.sender][token] >= scaledAmount, "Insufficient token balance");
         _userTokenBalances[msg.sender][token] -= scaledAmount;
-        uint256 owedInterest = (currentUser.interestShares * funds.interestPerShare) / 1e18;
-        funds.totalInterestShares -= currentUser.interestShares;
-        currentUser.interestShares = 0;
+        uint256 interestShares =
+            (((currentUser.interestShares * 1e18) * (scaledAmount * 1e18) / (currentUser.currentFund * 1e18)) / 1e18);
+        console2.log("interestPerShare", funds.interestPerShare);
+        uint256 owedInterest = (interestShares * funds.interestPerShare) / 1e18;
+        funds.totalInterestShares -= interestShares;
+        currentUser.interestShares -= interestShares;
         funds.interests -= owedInterest;
-        if (funds.totalInterestShares > 0) {
-            funds.interestPerShare = (funds.interests * 1e18) / funds.totalInterestShares;
-        } else {
-            funds.interestPerShare = funds.interests;
-        }
+
         _withdraw(amount, owedInterest, token, decimals);
     }
 
@@ -159,11 +161,6 @@ contract ReFiMedLendUpgradeable is
         _userTokenBalances[msg.sender][token] -= scaledAmount;
         funds.totalInterestShares -= currentUser.interestShares;
         currentUser.interestShares = 0;
-        if (funds.totalInterestShares > 0) {
-            funds.interestPerShare = (funds.interests * 1e18) / funds.totalInterestShares;
-        } else {
-            funds.interestPerShare = funds.interests;
-        }
         _withdraw(amount, 0, token, decimals);
     }
 
@@ -201,8 +198,6 @@ contract ReFiMedLendUpgradeable is
 
         if (funds.totalInterestShares > 0) {
             funds.interestPerShare += (interests * 1e18) / funds.totalInterestShares;
-        } else {
-            funds.interestPerShare += interests;
         }
         if (currentLend.currentAmount == 0) {
             uint256 initialAmount = currentLend.initialAmount;
