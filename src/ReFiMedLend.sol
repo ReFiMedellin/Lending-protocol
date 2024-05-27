@@ -123,7 +123,7 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
         _userTokenBalances[msg.sender][token] -= scaledAmount;
         uint256 owedInterest = (currentUser.interestShares * funds.interestPerShare) / 1e18;
         funds.totalInterestShares -= currentUser.interestShares;
-        currentUser.interestShares -= currentUser.interestShares;
+        currentUser.interestShares = 0;
         funds.interests -= owedInterest;
         if (funds.totalInterestShares > 0) {
             funds.interestPerShare = (funds.interests * 1e18) / funds.totalInterestShares;
@@ -136,11 +136,14 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
         uint256 scaledAmount = amount * _SCALAR;
         User storage currentUser = user[msg.sender];
         uint256 lastFund = currentUser.lastFund;
-        uint256 daysSinceLastFund = LendManagerUtils.timestampsToDays(lastFund, block.timestamp);
-        require(daysSinceLastFund >= 180, "The user must wait at least 180 days to withdraw funds");
         require(currentUser.currentFund >= scaledAmount, "Insuficent funds");
         require(_userTokenBalances[msg.sender][token] >= scaledAmount, "Insufficient token balance");
         _userTokenBalances[msg.sender][token] -= scaledAmount;
+        funds.totalInterestShares -= currentUser.interestShares;
+        currentUser.interestShares = 0;
+        if (funds.totalInterestShares > 0) {
+            funds.interestPerShare = (funds.interests * 1e18) / funds.totalInterestShares;
+        }
         _withdraw(amount, 0, token, decimals);
     }
 
@@ -365,6 +368,11 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
         uint256 random = uint256(keccak256(abi.encodePacked(block.prevrandao, block.timestamp, _lendNonce)));
         _lendNonce++;
         return random;
+    }
+
+    function transferAdmin(address newAdmin) external onlyAdmin {
+        _grantRole(ADMIN, newAdmin);
+        _revokeRole(ADMIN, msg.sender);
     }
 
     modifier onlyAdmin() {

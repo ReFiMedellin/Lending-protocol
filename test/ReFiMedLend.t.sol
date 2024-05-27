@@ -261,4 +261,60 @@ contract ReFiMedLendTest is Test {
         assertEq(interests, 0);
         assertEq(totalInterestShares, 0);
     }
+
+    function testWithdrawWithoutInterests() public {
+        prepareFunding(1000);
+        vm.prank(owner);
+        vm.expectEmit(true, true, false, true);
+        emit Withdraw(address(owner), 1000, 0, address(token), 18);
+        refiMedLend.withdrawWithoutInterests(1000, address(token));
+        assertEq(token.balanceOf(address(refiMedLend)), 0);
+        (uint256 totalFunds, uint256 interests, uint256 totalInterestShares, uint256 interestPerShare) =
+            refiMedLend.funds();
+        assertEq(totalFunds, 0);
+        assertEq(interests, 0);
+        assertEq(totalInterestShares, 0);
+    }
+
+    function testWithdrawWithoutInterestsFollowedByWithdraw() public {
+        address[] memory signers = new address[](3);
+        prepareFunding(1000);
+        vm.startPrank(funder);
+        prepareFunding(1000);
+        vm.stopPrank();
+        assertEq(token.balanceOf(address(refiMedLend)), 2000 * 1e18);
+        prepareSignIncreaseQuota(1300);
+
+        vm.prank(currentUser);
+        refiMedLend.requestLend(1300, address(token), block.timestamp + 1000);
+        uint256 time = LendManagerUtils.timestampsToDays(block.timestamp, block.timestamp + 31556926);
+        (uint256 _interest, uint256 _totalDebt) =
+            LendManagerUtils.calculateInterest(time, refiMedLend.INTEREST_RATE_PER_DAY(), 1300 * _SCALAR);
+        console.log("interest", _interest);
+        vm.warp(31556927);
+        vm.prank(currentUser);
+        token.approve(address(refiMedLend), _totalDebt * 1e15);
+        token.mint(address(currentUser), _totalDebt * 1e15);
+        vm.prank(currentUser);
+        refiMedLend.payDebt(_totalDebt, address(token), 0);
+
+        // Realizar un retiro sin intereses
+        vm.prank(owner);
+        refiMedLend.withdrawWithoutInterests(1000, address(token));
+
+        assertEq(token.balanceOf(address(refiMedLend)), (1000000 + _interest) * 1e15); // Deberían quedar 1000 tokens en el contrato
+
+        // Realizar un retiro normal
+        vm.prank(funder);
+        vm.expectEmit(true, true, false, true);
+        emit Withdraw(address(funder), 1000, _interest, address(token), 18);
+        refiMedLend.withdraw(1000, address(token));
+        assertEq(token.balanceOf(address(refiMedLend)), 0);
+
+        (uint256 totalFunds, uint256 interests, uint256 totalInterestShares, uint256 interestPerShare) =
+            refiMedLend.funds();
+        assertEq(totalFunds, 0);
+        assertEq(interests, 0);
+        assertEq(totalInterestShares, 0);
+    }
 }

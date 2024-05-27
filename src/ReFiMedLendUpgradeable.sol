@@ -139,7 +139,7 @@ contract ReFiMedLendUpgradeable is
         _userTokenBalances[msg.sender][token] -= scaledAmount;
         uint256 owedInterest = (currentUser.interestShares * funds.interestPerShare) / 1e18;
         funds.totalInterestShares -= currentUser.interestShares;
-        currentUser.interestShares -= currentUser.interestShares;
+        currentUser.interestShares = 0;
         funds.interests -= owedInterest;
         if (funds.totalInterestShares > 0) {
             funds.interestPerShare = (funds.interests * 1e18) / funds.totalInterestShares;
@@ -155,6 +155,11 @@ contract ReFiMedLendUpgradeable is
         require(currentUser.currentFund >= scaledAmount, "Insuficent funds");
         require(_userTokenBalances[msg.sender][token] >= scaledAmount, "Insufficient token balance");
         _userTokenBalances[msg.sender][token] -= scaledAmount;
+        funds.totalInterestShares -= currentUser.interestShares;
+        currentUser.interestShares = 0;
+        if (funds.totalInterestShares > 0) {
+            funds.interestPerShare = (funds.interests * 1e18) / funds.totalInterestShares;
+        }
         _withdraw(amount, 0, token, decimals);
     }
 
