@@ -318,11 +318,11 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
                 break;
             }
             if (userQuotaRequest.signedBy[signerIndex] == caller) {
-                senderIsSigner = true;
+                senderHasSigned = true;
             }
         }
         require(senderIsSigner, "Sender is not a valid signer");
-        require(!senderHasSigned, "Sender has signed yet");
+        require(!senderHasSigned, "Sender already signed");
         userQuotaRequest.signedBy.push(caller);
         userQuotaRequest.successfulSigns += 1;
         if (userQuotaRequest.successfulSigns == 3) {
