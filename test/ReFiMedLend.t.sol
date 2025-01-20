@@ -43,6 +43,7 @@ contract ReFiMedLendTest is Test {
     ReFiMedLend public refiMedLend;
 
     MockERC20 public token;
+    MockERC20 public token2;
     address public currentUser = address(1);
     address public owner = address(this);
     address public signer1 = address(2);
@@ -53,14 +54,18 @@ contract ReFiMedLendTest is Test {
     function setUp() public {
         refiMedLend = new ReFiMedLend(address(this));
         token = new MockERC20();
+        token2 = new MockERC20();
         refiMedLend.addToken(address(token));
+        refiMedLend.addToken(address(token2));
         token.mint(address(owner), 10000 * 1e18);
         token.mint(address(funder), 10000 * 1e18);
+        token2.mint(address(owner), 10000 * 1e18);
+        token2.mint(address(funder), 10000 * 1e18);
     }
 
-    function getUserInterestShares(address user) internal returns (uint256) {
+    function getUserInterestShares(address user, address _token) internal view returns (uint256) {
         (uint256 ownerQuota, uint256 ownerCurrentFund, uint256 ownerInterestShares, uint256 ownerLastFund) =
-            refiMedLend.user(user);
+            refiMedLend.getUserFunds(user, _token);
         console.log("ownerQuota: ", ownerQuota);
         console.log("ownerCurrentFund: ", ownerCurrentFund);
         console.log("ownerInterestShares: ", ownerInterestShares);
@@ -68,9 +73,9 @@ contract ReFiMedLendTest is Test {
         return ownerInterestShares;
     }
 
-    function getGlobalInterestsPerShare() internal returns (uint256) {
+    function getTokenFunds(address _token) internal view returns (uint256) {
         (uint256 totalFunds, uint256 interests, uint256 totalInterestShares, uint256 interestPerShare) =
-            refiMedLend.funds();
+            refiMedLend.tokenFunds(_token);
         console.log("totalFunds", totalFunds);
         console.log("interests", interests);
         console.log("totalInterestShares", totalInterestShares);
@@ -78,9 +83,13 @@ contract ReFiMedLendTest is Test {
         return (interests * 1e18) / totalInterestShares;
     }
 
+    function prepareFunding(address _token, uint256 amount) internal {
+        MockERC20(_token).approve(address(refiMedLend), amount * 1e18);
+        refiMedLend.fund(amount, _token);
+    }
+
     function prepareFunding(uint256 amount) internal {
-        token.approve(address(refiMedLend), amount * 1e18);
-        refiMedLend.fund(amount, address(token));
+        prepareFunding(address(token), amount);
     }
 
     function prepareQuotaIncrease(uint256 amount) internal {
@@ -106,7 +115,7 @@ contract ReFiMedLendTest is Test {
         prepareFunding(1000);
         assertEq(token.balanceOf(address(refiMedLend)), 1000 * 1e18);
         (uint256 totalFunds, uint256 interests, uint256 totalInterestShares, uint256 interestPerShare) =
-            refiMedLend.funds();
+            refiMedLend.tokenFunds(address(token));
         assertEq(totalFunds, 1000 * _SCALAR);
         assertEq(totalInterestShares, 1000 * _SCALAR);
     }
@@ -120,6 +129,16 @@ contract ReFiMedLendTest is Test {
         vm.expectEmit(true, true, false, true);
         emit UserQuotaIncreaseRequest(owner, 0, currentUser, 500, signers);
         prepareQuotaIncrease(500);
+    }
+
+    function testRequestIncreaseQuotaFailsOnSameSigner() public {
+        address[] memory signers = new address[](3);
+        prepareFunding(1000);
+        signers[0] = signer1;
+        signers[1] = signer2;
+        signers[2] = signer1;
+        vm.expectRevert();
+        refiMedLend.requestIncreaseQuota(currentUser, 500, signers);
     }
 
     function testSignIncreaseQuota() public {
@@ -179,9 +198,29 @@ contract ReFiMedLendTest is Test {
         vm.prank(currentUser);
         refiMedLend.payDebt(_totalDebt, address(token), 0);
         (uint256 totalFunds, uint256 interests, uint256 totalInterestShares, uint256 interestPerShare) =
-            refiMedLend.funds();
+            refiMedLend.tokenFunds(address(token));
         console.log(interests);
         assert(interests == 30663);
+    }
+
+    function testPayLendFailsIfOtherToken() public {
+        address[] memory signers = new address[](3);
+        prepareFunding(1000);
+        assertEq(token.balanceOf(address(refiMedLend)), 1000 * 1e18);
+        prepareSignIncreaseQuota(500);
+        vm.prank(currentUser);
+        refiMedLend.requestLend(500, address(token), block.timestamp + 1000);
+        assert(token.balanceOf(address(refiMedLend)) == 500 * 1e18);
+        uint256 time = LendManagerUtils.timestampsToDays(block.timestamp, block.timestamp + 31556926);
+        (uint256 _interest, uint256 _totalDebt) =
+            LendManagerUtils.calculateInterest(time, refiMedLend.INTEREST_RATE_PER_DAY(), 500 * _SCALAR);
+        vm.warp(31556927);
+        vm.prank(currentUser);
+        token2.approve(address(refiMedLend), 530663 * 1e15);
+        token2.mint(address(currentUser), 530663 * 1e15);
+        vm.prank(currentUser);
+        vm.expectRevert();
+        refiMedLend.payDebt(_totalDebt, address(token2), 0);
     }
 
     function testPartialyPayLend() public {
@@ -203,7 +242,7 @@ contract ReFiMedLendTest is Test {
         vm.prank(currentUser);
         refiMedLend.payDebt(200 * 1e3, address(token), 0);
         (uint256 totalFunds, uint256 interests, uint256 totalInterestShares, uint256 interestPerShare) =
-            refiMedLend.funds();
+            refiMedLend.tokenFunds(address(token));
         assert(interests == _interest);
     }
 
@@ -238,7 +277,7 @@ contract ReFiMedLendTest is Test {
         vm.expectRevert();
         refiMedLend.withdraw(1000, address(token));
         (uint256 totalFunds, uint256 interests, uint256 totalInterestShares, uint256 interestPerShare) =
-            refiMedLend.funds();
+            refiMedLend.tokenFunds(address(token));
 
         assertEq(totalFunds, 0);
         assertEq(interests, 0);
@@ -272,7 +311,7 @@ contract ReFiMedLendTest is Test {
         console.log("Balance", token.balanceOf(address(refiMedLend)));
         assertEq(token.balanceOf(address(refiMedLend)), 0);
         (uint256 totalFunds, uint256 interests, uint256 totalInterestShares, uint256 interestPerShare) =
-            refiMedLend.funds();
+            refiMedLend.tokenFunds(address(token));
         console.log("totalFunds: ", totalFunds);
         console.log("interests: ", interests);
         console.log("totalInterestShares: ", totalInterestShares);
@@ -290,7 +329,7 @@ contract ReFiMedLendTest is Test {
         refiMedLend.withdrawWithoutInterests(1000, address(token));
         assertEq(token.balanceOf(address(refiMedLend)), 0);
         (uint256 totalFunds, uint256 interests, uint256 totalInterestShares, uint256 interestPerShare) =
-            refiMedLend.funds();
+            refiMedLend.tokenFunds(address(token));
         assertEq(totalFunds, 0);
         assertEq(interests, 0);
         assertEq(totalInterestShares, 0);
@@ -332,7 +371,7 @@ contract ReFiMedLendTest is Test {
         assertEq(token.balanceOf(address(refiMedLend)), 0);
 
         (uint256 totalFunds, uint256 interests, uint256 totalInterestShares, uint256 interestPerShare) =
-            refiMedLend.funds();
+            refiMedLend.tokenFunds(address(token));
         assertEq(totalFunds, 0);
         assertEq(interests, 0);
         assertEq(totalInterestShares, 0);
@@ -367,7 +406,7 @@ contract ReFiMedLendTest is Test {
 
         // Verificar que totalInterestShares y totalFunds sean 0
         (uint256 totalFunds, uint256 interests, uint256 totalInterestShares, uint256 interestPerShare) =
-            refiMedLend.funds();
+            refiMedLend.tokenFunds(address(token));
         assertEq(totalFunds, 0);
         assertEq(interests, _interest);
         assertEq(totalInterestShares, 0);
@@ -378,9 +417,9 @@ contract ReFiMedLendTest is Test {
         vm.stopPrank();
         assertEq(token.balanceOf(address(refiMedLend)), (1000000 + _interest) * 1e15);
 
-        (totalFunds, interests, totalInterestShares, interestPerShare) = refiMedLend.funds();
+        (totalFunds, interests, totalInterestShares, interestPerShare) = refiMedLend.tokenFunds(address(token));
         (uint256 ownerQuota, uint256 ownerCurrentFund, uint256 ownerInterestShares, uint256 ownerLastFund) =
-            refiMedLend.user(address(owner));
+            refiMedLend.getUserFunds(address(owner), address(token));
         assertEq(totalFunds, 1000 * _SCALAR);
         assertEq(totalInterestShares, 1000 * _SCALAR);
 
@@ -395,7 +434,7 @@ contract ReFiMedLendTest is Test {
         vm.prank(owner);
         refiMedLend.withdraw(1000, address(token));
         assertEq(token.balanceOf(address(refiMedLend)), 0);
-        (totalFunds, interests, totalInterestShares, interestPerShare) = refiMedLend.funds();
+        (totalFunds, interests, totalInterestShares, interestPerShare) = refiMedLend.tokenFunds(address(token));
         assertEq(totalFunds, 0);
         assertEq(interests, 0);
         assertEq(totalInterestShares, 0);
@@ -421,18 +460,18 @@ contract ReFiMedLendTest is Test {
         vm.prank(currentUser);
         refiMedLend.payDebt(_totalDebt, address(token), 0);
         (uint256 totalFunds, uint256 interests, uint256 totalInterestShares, uint256 interestPerShare) =
-            refiMedLend.funds();
+            refiMedLend.tokenFunds(address(token));
 
         // First partial withdrawal
 
         uint256 partialWithdrawAmount1 = 1000;
         uint256 expectedInterestShares1 = (
             (
-                (getUserInterestShares(address(owner)) * 1e18) * ((partialWithdrawAmount1 * 1e3) * 1e18)
+                (getUserInterestShares(address(owner), address(token)) * 1e18) * ((partialWithdrawAmount1 * 1e3) * 1e18)
                     / (1500000 * 1e18)
             ) / 1e18
         );
-        uint256 expectedInterest1 = expectedInterestShares1 * getGlobalInterestsPerShare() / 1e18;
+        uint256 expectedInterest1 = expectedInterestShares1 * getTokenFunds(address(token)) / 1e18;
         vm.prank(owner);
         vm.expectEmit(true, true, false, true);
         console.log("balance before", token.balanceOf(address(refiMedLend)));
@@ -446,11 +485,13 @@ contract ReFiMedLendTest is Test {
 
         uint256 partialWithdrawAmount2 = 500;
         uint256 expectedInterestShares2 = (
-            ((getUserInterestShares(address(owner)) * 1e18) * ((partialWithdrawAmount2 * 1e3) * 1e18) / (500000 * 1e18))
-                / 1e18
+            (
+                (getUserInterestShares(address(owner), address(token)) * 1e18) * ((partialWithdrawAmount2 * 1e3) * 1e18)
+                    / (500000 * 1e18)
+            ) / 1e18
         );
-        uint256 expectedInterest2 = expectedInterestShares2 * getGlobalInterestsPerShare() / 1e18;
-        console.log("interestPerShare", getGlobalInterestsPerShare());
+        uint256 expectedInterest2 = expectedInterestShares2 * getTokenFunds(address(token)) / 1e18;
+        console.log("interestPerShare", getTokenFunds(address(token)));
         vm.prank(owner);
         vm.expectEmit(true, true, false, true);
         emit Withdraw(address(owner), partialWithdrawAmount2, expectedInterest2, address(token), 18);
@@ -464,7 +505,7 @@ contract ReFiMedLendTest is Test {
                 )
         );
 
-        (totalFunds, interests, totalInterestShares, interestPerShare) = refiMedLend.funds();
+        (totalFunds, interests, totalInterestShares, interestPerShare) = refiMedLend.tokenFunds(address(token));
         console.log("totalFunds", totalFunds);
         assertEq(totalFunds, 1500 * 1e3);
         assertEq(interests, _interest / 2);

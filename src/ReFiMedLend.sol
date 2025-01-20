@@ -5,8 +5,8 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@/library/LendManagerUtils.sol";
-import "../lib/forge-std/src/console2.sol";
+import {LendManagerUtils} from "@/library/LendManagerUtils.sol";
+import {console2} from "forge-std/console2.sol";
 
 contract ReFiMedLend is Ownable, AccessControl, Pausable {
     struct Lend {
@@ -29,9 +29,9 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
         uint256 quota;
         Lend[] currentLends;
         UserQuotaRequest[] userQuotaRequests;
-        uint256 currentFund;
-        uint256 interestShares;
-        uint256 lastFund;
+        mapping(address => uint256) currentFund;
+        mapping(address => uint256) interestShares;
+        mapping(address => uint256) lastFund;
     }
 
     struct Funds {
@@ -52,7 +52,7 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
 
     mapping(address => bool) internal _tokens;
 
-    Funds public funds;
+    mapping(address => Funds) public tokenFunds;
 
     event Funded(address indexed funder, uint256 amount, address indexed token, uint8 decimals);
 
@@ -93,18 +93,18 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
         require(decimals > 0, "Error while obtaining decimals");
 
         uint256 scaledAmount = amount * _SCALAR;
-        if (funds.totalFunds == 0) {
-            user[msg.sender].interestShares = scaledAmount;
-            funds.totalInterestShares = scaledAmount;
-            funds.totalFunds = scaledAmount;
+        if (tokenFunds[token].totalFunds == 0) {
+            user[msg.sender].interestShares[token] = scaledAmount;
+            tokenFunds[token].totalInterestShares = scaledAmount;
+            tokenFunds[token].totalFunds = scaledAmount;
         } else {
-            uint256 userShares = (scaledAmount * funds.totalInterestShares) / funds.totalFunds;
-            user[msg.sender].interestShares += userShares;
-            funds.totalInterestShares += userShares;
-            funds.totalFunds += scaledAmount;
+            uint256 userShares = (scaledAmount * tokenFunds[token].totalInterestShares) / tokenFunds[token].totalFunds;
+            user[msg.sender].interestShares[token] += userShares;
+            tokenFunds[token].totalInterestShares += userShares;
+            tokenFunds[token].totalFunds += scaledAmount;
         }
-        user[msg.sender].currentFund += scaledAmount;
-        user[msg.sender].lastFund = block.timestamp;
+        user[msg.sender].currentFund[token] += scaledAmount;
+        user[msg.sender].lastFund[token] = block.timestamp;
         _userTokenBalances[msg.sender][token] += scaledAmount;
         require(
             ERC20(token).transferFrom(msg.sender, address(this), amount * 10 ** decimals), "Error while transfer tokens"
@@ -116,22 +116,27 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
         uint8 decimals = ERC20(token).decimals();
         uint256 scaledAmount = amount * _SCALAR;
         User storage currentUser = user[msg.sender];
-        if (funds.totalInterestShares > 0) {
-            funds.interestPerShare = (funds.interests * 1e18) / funds.totalInterestShares;
+        if (tokenFunds[token].totalInterestShares > 0) {
+            tokenFunds[token].interestPerShare =
+                (tokenFunds[token].interests * 1e18) / tokenFunds[token].totalInterestShares;
         }
-        uint256 lastFund = currentUser.lastFund;
+        uint256 lastFund = currentUser.lastFund[token];
         uint256 daysSinceLastFund = LendManagerUtils.timestampsToDays(lastFund, block.timestamp);
         require(daysSinceLastFund >= 180, "The user must wait at least 180 days to withdraw funds");
-        require(currentUser.currentFund >= scaledAmount, "Insuficent funds");
+        require(currentUser.currentFund[token] >= scaledAmount, "Insuficent funds");
         require(_userTokenBalances[msg.sender][token] >= scaledAmount, "Insufficient token balance");
         _userTokenBalances[msg.sender][token] -= scaledAmount;
-        uint256 interestShares =
-            (((currentUser.interestShares * 1e18) * (scaledAmount * 1e18) / (currentUser.currentFund * 1e18)) / 1e18);
-        console2.log("interestPerShare", funds.interestPerShare);
-        uint256 owedInterest = (interestShares * funds.interestPerShare) / 1e18;
-        funds.totalInterestShares -= interestShares;
-        currentUser.interestShares -= interestShares;
-        funds.interests -= owedInterest;
+        uint256 interestShares = (
+            (
+                (currentUser.interestShares[token] * 1e18) * (scaledAmount * 1e18)
+                    / (currentUser.currentFund[token] * 1e18)
+            ) / 1e18
+        );
+        console2.log("interestPerShare", tokenFunds[token].interestPerShare);
+        uint256 owedInterest = (interestShares * tokenFunds[token].interestPerShare) / 1e18;
+        tokenFunds[token].totalInterestShares -= interestShares;
+        currentUser.interestShares[token] -= interestShares;
+        tokenFunds[token].interests -= owedInterest;
 
         _withdraw(amount, owedInterest, token, decimals);
     }
@@ -140,12 +145,12 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
         uint8 decimals = ERC20(token).decimals();
         uint256 scaledAmount = amount * _SCALAR;
         User storage currentUser = user[msg.sender];
-        uint256 lastFund = currentUser.lastFund;
-        require(currentUser.currentFund >= scaledAmount, "Insuficent funds");
+        uint256 lastFund = currentUser.lastFund[token];
+        require(currentUser.currentFund[token] >= scaledAmount, "Insuficent funds");
         require(_userTokenBalances[msg.sender][token] >= scaledAmount, "Insufficient token balance");
         _userTokenBalances[msg.sender][token] -= scaledAmount;
-        funds.totalInterestShares -= currentUser.interestShares;
-        currentUser.interestShares = 0;
+        tokenFunds[token].totalInterestShares -= currentUser.interestShares[token];
+        currentUser.interestShares[token] = 0;
         _withdraw(amount, 0, token, decimals);
     }
 
@@ -176,13 +181,14 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
         require(currentLend.currentAmount >= scaledAmount, "Invalid amount to pay");
         require(decimals > 0, "Error while obtaining decimals");
         require(_tokens[token], "The token is not whitelisted yet");
+        require(currentLend.token == address(token), "Cannot pay lend with other token");
 
         currentLend.currentAmount -= scaledAmount;
-        funds.interests += interests;
+        tokenFunds[token].interests += interests;
         uint256 nonce = currentLend.nonce;
 
-        if (funds.totalInterestShares > 0) {
-            funds.interestPerShare += (interests * 1e18) / funds.totalInterestShares;
+        if (tokenFunds[token].totalInterestShares > 0) {
+            tokenFunds[token].interestPerShare += (interests * 1e18) / tokenFunds[token].totalInterestShares;
         }
         if (currentLend.currentAmount == 0) {
             uint256 initialAmount = currentLend.initialAmount;
@@ -329,7 +335,7 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
 
     function getSpareFunds(address token) external onlyAdmin {
         uint256 balance = ERC20(token).balanceOf(address(this));
-        require(funds.totalFunds == 0, "The total funds must be 0");
+        require(tokenFunds[token].totalFunds == 0, "The total funds must be 0");
         require(balance > 0, "The balance must be greather than 0");
         require(ERC20(token).transfer(msg.sender, balance), "Error while transfering funds");
     }
@@ -348,6 +354,15 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
         return (_interests, _totalDebt);
     }
 
+    function getUserFunds(address userAddress, address token)
+        external
+        view
+        returns (uint256 quota, uint256 currentFund, uint256 interestShares, uint256 lastFund)
+    {
+        User storage userData = user[userAddress];
+        return (userData.quota, userData.currentFund[token], userData.interestShares[token], userData.lastFund[token]);
+    }
+
     function _withdraw(uint256 amount, uint256 interests, address token, uint8 decimals) private {
         uint256 scaledAmount = amount * _SCALAR;
         User storage currentUser = user[msg.sender];
@@ -355,9 +370,9 @@ contract ReFiMedLend is Ownable, AccessControl, Pausable {
         require(decimals > 0, "Error while obtaining decimals");
         require(amount > 0, "The amount must be greather than 0");
         require(_tokens[token], "The token is not whitelisted yet");
-        require(currentUser.currentFund >= scaledAmount, "Invalid amount");
-        currentUser.currentFund -= scaledAmount;
-        funds.totalFunds -= scaledAmount;
+        require(currentUser.currentFund[token] >= scaledAmount, "Invalid amount");
+        currentUser.currentFund[token] -= scaledAmount;
+        tokenFunds[token].totalFunds -= scaledAmount;
 
         require(
             ERC20(token).transfer(msg.sender, ((scaledAmount + interests) * 10 ** (decimals - 3))),
