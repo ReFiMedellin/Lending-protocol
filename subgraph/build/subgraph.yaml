@@ -8,9 +8,9 @@ dataSources:
     name: ReFiMedLend
     network: sepolia
     source:
-      address: "0x8B72991A0D96B49CC89A42BB61b1baca9812f163"
+      address: "0x2C4863195C6B9693eDcc2FB7A1eBAaeBB6a94C3b"
       abi: ReFiMedLend
-      startBlock: 5750975
+      startBlock: 7576326
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -33,7 +33,7 @@ dataSources:
         - Withdraw
       abis:
         - name: ReFiMedLend
-          file: ReFiMedLend/abis/ReFiMedLend.json
+          file: ReFiMedLend/ReFiMedLend.json
       eventHandlers:
         - event: Debt(indexed address,uint256,uint256,indexed address,uint8,uint256)
           handler: handleDebt

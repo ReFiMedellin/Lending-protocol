@@ -78,6 +78,24 @@ export class Funded__Params {
   }
 }
 
+export class Initialized extends ethereum.Event {
+  get params(): Initialized__Params {
+    return new Initialized__Params(this);
+  }
+}
+
+export class Initialized__Params {
+  _event: Initialized;
+
+  constructor(event: Initialized) {
+    this._event = event;
+  }
+
+  get version(): BigInt {
+    return this._event.parameters[0].value.toBigInt();
+  }
+}
+
 export class LendRepaid extends ethereum.Event {
   get params(): LendRepaid__Params {
     return new LendRepaid__Params(this);
@@ -312,6 +330,24 @@ export class Unpaused__Params {
   }
 }
 
+export class Upgraded extends ethereum.Event {
+  get params(): Upgraded__Params {
+    return new Upgraded__Params(this);
+  }
+}
+
+export class Upgraded__Params {
+  _event: Upgraded;
+
+  constructor(event: Upgraded) {
+    this._event = event;
+  }
+
+  get implementation(): Address {
+    return this._event.parameters[0].value.toAddress();
+  }
+}
+
 export class UserQuotaChanged extends ethereum.Event {
   get params(): UserQuotaChanged__Params {
     return new UserQuotaChanged__Params(this);
@@ -436,7 +472,32 @@ export class Withdraw__Params {
   }
 }
 
-export class ReFiMedLend__fundsResult {
+export class ReFiMedLend__calculateInterestsResult {
+  value0: BigInt;
+  value1: BigInt;
+
+  constructor(value0: BigInt, value1: BigInt) {
+    this.value0 = value0;
+    this.value1 = value1;
+  }
+
+  toMap(): TypedMap<string, ethereum.Value> {
+    let map = new TypedMap<string, ethereum.Value>();
+    map.set("value0", ethereum.Value.fromUnsignedBigInt(this.value0));
+    map.set("value1", ethereum.Value.fromUnsignedBigInt(this.value1));
+    return map;
+  }
+
+  getInterests(): BigInt {
+    return this.value0;
+  }
+
+  getTotalDebt(): BigInt {
+    return this.value1;
+  }
+}
+
+export class ReFiMedLend__getUserFundsResult {
   value0: BigInt;
   value1: BigInt;
   value2: BigInt;
@@ -458,19 +519,19 @@ export class ReFiMedLend__fundsResult {
     return map;
   }
 
-  getTotalFunds(): BigInt {
+  getQuota(): BigInt {
     return this.value0;
   }
 
-  getInterests(): BigInt {
+  getCurrentFund(): BigInt {
     return this.value1;
   }
 
-  getTotalInterestShares(): BigInt {
+  getInterestShares(): BigInt {
     return this.value2;
   }
 
-  getInterestPerShare(): BigInt {
+  getLastFund(): BigInt {
     return this.value3;
   }
 }
@@ -519,7 +580,7 @@ export class ReFiMedLend__getUserQuotaRequestsResultValue0Struct extends ethereu
   }
 }
 
-export class ReFiMedLend__userResult {
+export class ReFiMedLend__tokenFundsResult {
   value0: BigInt;
   value1: BigInt;
   value2: BigInt;
@@ -541,19 +602,19 @@ export class ReFiMedLend__userResult {
     return map;
   }
 
-  getQuota(): BigInt {
+  getTotalFunds(): BigInt {
     return this.value0;
   }
 
-  getCurrentFund(): BigInt {
+  getInterests(): BigInt {
     return this.value1;
   }
 
-  getInterestShares(): BigInt {
+  getTotalInterestShares(): BigInt {
     return this.value2;
   }
 
-  getLastFund(): BigInt {
+  getInterestPerShare(): BigInt {
     return this.value3;
   }
 }
@@ -609,37 +670,58 @@ export class ReFiMedLend extends ethereum.SmartContract {
     return ethereum.CallResult.fromValue(value[0].toBigInt());
   }
 
-  funds(): ReFiMedLend__fundsResult {
+  UPGRADE_INTERFACE_VERSION(): string {
     let result = super.call(
-      "funds",
-      "funds():(uint256,uint256,uint256,uint256)",
+      "UPGRADE_INTERFACE_VERSION",
+      "UPGRADE_INTERFACE_VERSION():(string)",
       [],
     );
 
-    return new ReFiMedLend__fundsResult(
-      result[0].toBigInt(),
-      result[1].toBigInt(),
-      result[2].toBigInt(),
-      result[3].toBigInt(),
-    );
+    return result[0].toString();
   }
 
-  try_funds(): ethereum.CallResult<ReFiMedLend__fundsResult> {
+  try_UPGRADE_INTERFACE_VERSION(): ethereum.CallResult<string> {
     let result = super.tryCall(
-      "funds",
-      "funds():(uint256,uint256,uint256,uint256)",
+      "UPGRADE_INTERFACE_VERSION",
+      "UPGRADE_INTERFACE_VERSION():(string)",
       [],
     );
     if (result.reverted) {
       return new ethereum.CallResult();
     }
     let value = result.value;
+    return ethereum.CallResult.fromValue(value[0].toString());
+  }
+
+  calculateInterests(lendIndex: BigInt): ReFiMedLend__calculateInterestsResult {
+    let result = super.call(
+      "calculateInterests",
+      "calculateInterests(uint256):(uint256,uint256)",
+      [ethereum.Value.fromUnsignedBigInt(lendIndex)],
+    );
+
+    return new ReFiMedLend__calculateInterestsResult(
+      result[0].toBigInt(),
+      result[1].toBigInt(),
+    );
+  }
+
+  try_calculateInterests(
+    lendIndex: BigInt,
+  ): ethereum.CallResult<ReFiMedLend__calculateInterestsResult> {
+    let result = super.tryCall(
+      "calculateInterests",
+      "calculateInterests(uint256):(uint256,uint256)",
+      [ethereum.Value.fromUnsignedBigInt(lendIndex)],
+    );
+    if (result.reverted) {
+      return new ethereum.CallResult();
+    }
+    let value = result.value;
     return ethereum.CallResult.fromValue(
-      new ReFiMedLend__fundsResult(
+      new ReFiMedLend__calculateInterestsResult(
         value[0].toBigInt(),
         value[1].toBigInt(),
-        value[2].toBigInt(),
-        value[3].toBigInt(),
       ),
     );
   }
@@ -663,6 +745,53 @@ export class ReFiMedLend extends ethereum.SmartContract {
     }
     let value = result.value;
     return ethereum.CallResult.fromValue(value[0].toBytes());
+  }
+
+  getUserFunds(
+    userAddress: Address,
+    token: Address,
+  ): ReFiMedLend__getUserFundsResult {
+    let result = super.call(
+      "getUserFunds",
+      "getUserFunds(address,address):(uint256,uint256,uint256,uint256)",
+      [
+        ethereum.Value.fromAddress(userAddress),
+        ethereum.Value.fromAddress(token),
+      ],
+    );
+
+    return new ReFiMedLend__getUserFundsResult(
+      result[0].toBigInt(),
+      result[1].toBigInt(),
+      result[2].toBigInt(),
+      result[3].toBigInt(),
+    );
+  }
+
+  try_getUserFunds(
+    userAddress: Address,
+    token: Address,
+  ): ethereum.CallResult<ReFiMedLend__getUserFundsResult> {
+    let result = super.tryCall(
+      "getUserFunds",
+      "getUserFunds(address,address):(uint256,uint256,uint256,uint256)",
+      [
+        ethereum.Value.fromAddress(userAddress),
+        ethereum.Value.fromAddress(token),
+      ],
+    );
+    if (result.reverted) {
+      return new ethereum.CallResult();
+    }
+    let value = result.value;
+    return ethereum.CallResult.fromValue(
+      new ReFiMedLend__getUserFundsResult(
+        value[0].toBigInt(),
+        value[1].toBigInt(),
+        value[2].toBigInt(),
+        value[3].toBigInt(),
+      ),
+    );
   }
 
   getUserLendsPaginated(
@@ -845,6 +974,25 @@ export class ReFiMedLend extends ethereum.SmartContract {
     return ethereum.CallResult.fromValue(value[0].toBoolean());
   }
 
+  proxiableUUID(): Bytes {
+    let result = super.call("proxiableUUID", "proxiableUUID():(bytes32)", []);
+
+    return result[0].toBytes();
+  }
+
+  try_proxiableUUID(): ethereum.CallResult<Bytes> {
+    let result = super.tryCall(
+      "proxiableUUID",
+      "proxiableUUID():(bytes32)",
+      [],
+    );
+    if (result.reverted) {
+      return new ethereum.CallResult();
+    }
+    let value = result.value;
+    return ethereum.CallResult.fromValue(value[0].toBytes());
+  }
+
   supportsInterface(interfaceId: Bytes): boolean {
     let result = super.call(
       "supportsInterface",
@@ -868,14 +1016,14 @@ export class ReFiMedLend extends ethereum.SmartContract {
     return ethereum.CallResult.fromValue(value[0].toBoolean());
   }
 
-  user(param0: Address): ReFiMedLend__userResult {
+  tokenFunds(param0: Address): ReFiMedLend__tokenFundsResult {
     let result = super.call(
-      "user",
-      "user(address):(uint256,uint256,uint256,uint256)",
+      "tokenFunds",
+      "tokenFunds(address):(uint256,uint256,uint256,uint256)",
       [ethereum.Value.fromAddress(param0)],
     );
 
-    return new ReFiMedLend__userResult(
+    return new ReFiMedLend__tokenFundsResult(
       result[0].toBigInt(),
       result[1].toBigInt(),
       result[2].toBigInt(),
@@ -883,10 +1031,12 @@ export class ReFiMedLend extends ethereum.SmartContract {
     );
   }
 
-  try_user(param0: Address): ethereum.CallResult<ReFiMedLend__userResult> {
+  try_tokenFunds(
+    param0: Address,
+  ): ethereum.CallResult<ReFiMedLend__tokenFundsResult> {
     let result = super.tryCall(
-      "user",
-      "user(address):(uint256,uint256,uint256,uint256)",
+      "tokenFunds",
+      "tokenFunds(address):(uint256,uint256,uint256,uint256)",
       [ethereum.Value.fromAddress(param0)],
     );
     if (result.reverted) {
@@ -894,7 +1044,7 @@ export class ReFiMedLend extends ethereum.SmartContract {
     }
     let value = result.value;
     return ethereum.CallResult.fromValue(
-      new ReFiMedLend__userResult(
+      new ReFiMedLend__tokenFundsResult(
         value[0].toBigInt(),
         value[1].toBigInt(),
         value[2].toBigInt(),
@@ -902,35 +1052,24 @@ export class ReFiMedLend extends ethereum.SmartContract {
       ),
     );
   }
-}
 
-export class ConstructorCall extends ethereum.Call {
-  get inputs(): ConstructorCall__Inputs {
-    return new ConstructorCall__Inputs(this);
+  user(param0: Address): BigInt {
+    let result = super.call("user", "user(address):(uint256)", [
+      ethereum.Value.fromAddress(param0),
+    ]);
+
+    return result[0].toBigInt();
   }
 
-  get outputs(): ConstructorCall__Outputs {
-    return new ConstructorCall__Outputs(this);
-  }
-}
-
-export class ConstructorCall__Inputs {
-  _call: ConstructorCall;
-
-  constructor(call: ConstructorCall) {
-    this._call = call;
-  }
-
-  get _attestationResolver(): Address {
-    return this._call.inputValues[0].value.toAddress();
-  }
-}
-
-export class ConstructorCall__Outputs {
-  _call: ConstructorCall;
-
-  constructor(call: ConstructorCall) {
-    this._call = call;
+  try_user(param0: Address): ethereum.CallResult<BigInt> {
+    let result = super.tryCall("user", "user(address):(uint256)", [
+      ethereum.Value.fromAddress(param0),
+    ]);
+    if (result.reverted) {
+      return new ethereum.CallResult();
+    }
+    let value = result.value;
+    return ethereum.CallResult.fromValue(value[0].toBigInt());
   }
 }
 
@@ -1142,6 +1281,44 @@ export class IncreaseQuotaCall__Outputs {
   }
 }
 
+export class InitializeCall extends ethereum.Call {
+  get inputs(): InitializeCall__Inputs {
+    return new InitializeCall__Inputs(this);
+  }
+
+  get outputs(): InitializeCall__Outputs {
+    return new InitializeCall__Outputs(this);
+  }
+}
+
+export class InitializeCall__Inputs {
+  _call: InitializeCall;
+
+  constructor(call: InitializeCall) {
+    this._call = call;
+  }
+
+  get _attestationResolver(): Address {
+    return this._call.inputValues[0].value.toAddress();
+  }
+
+  get multisig(): Address {
+    return this._call.inputValues[1].value.toAddress();
+  }
+
+  get admin(): Address {
+    return this._call.inputValues[2].value.toAddress();
+  }
+}
+
+export class InitializeCall__Outputs {
+  _call: InitializeCall;
+
+  constructor(call: InitializeCall) {
+    this._call = call;
+  }
+}
+
 export class PayDebtCall extends ethereum.Call {
   get inputs(): PayDebtCall__Inputs {
     return new PayDebtCall__Inputs(this);
@@ -1176,6 +1353,36 @@ export class PayDebtCall__Outputs {
   _call: PayDebtCall;
 
   constructor(call: PayDebtCall) {
+    this._call = call;
+  }
+}
+
+export class RemoveTokenCall extends ethereum.Call {
+  get inputs(): RemoveTokenCall__Inputs {
+    return new RemoveTokenCall__Inputs(this);
+  }
+
+  get outputs(): RemoveTokenCall__Outputs {
+    return new RemoveTokenCall__Outputs(this);
+  }
+}
+
+export class RemoveTokenCall__Inputs {
+  _call: RemoveTokenCall;
+
+  constructor(call: RemoveTokenCall) {
+    this._call = call;
+  }
+
+  get tokenAddress(): Address {
+    return this._call.inputValues[0].value.toAddress();
+  }
+}
+
+export class RemoveTokenCall__Outputs {
+  _call: RemoveTokenCall;
+
+  constructor(call: RemoveTokenCall) {
     this._call = call;
   }
 }
@@ -1380,6 +1587,36 @@ export class SetInterestPerDayCall__Outputs {
   }
 }
 
+export class TransferAdminCall extends ethereum.Call {
+  get inputs(): TransferAdminCall__Inputs {
+    return new TransferAdminCall__Inputs(this);
+  }
+
+  get outputs(): TransferAdminCall__Outputs {
+    return new TransferAdminCall__Outputs(this);
+  }
+}
+
+export class TransferAdminCall__Inputs {
+  _call: TransferAdminCall;
+
+  constructor(call: TransferAdminCall) {
+    this._call = call;
+  }
+
+  get newAdmin(): Address {
+    return this._call.inputValues[0].value.toAddress();
+  }
+}
+
+export class TransferAdminCall__Outputs {
+  _call: TransferAdminCall;
+
+  constructor(call: TransferAdminCall) {
+    this._call = call;
+  }
+}
+
 export class TransferOwnershipCall extends ethereum.Call {
   get inputs(): TransferOwnershipCall__Inputs {
     return new TransferOwnershipCall__Inputs(this);
@@ -1406,6 +1643,40 @@ export class TransferOwnershipCall__Outputs {
   _call: TransferOwnershipCall;
 
   constructor(call: TransferOwnershipCall) {
+    this._call = call;
+  }
+}
+
+export class UpgradeToAndCallCall extends ethereum.Call {
+  get inputs(): UpgradeToAndCallCall__Inputs {
+    return new UpgradeToAndCallCall__Inputs(this);
+  }
+
+  get outputs(): UpgradeToAndCallCall__Outputs {
+    return new UpgradeToAndCallCall__Outputs(this);
+  }
+}
+
+export class UpgradeToAndCallCall__Inputs {
+  _call: UpgradeToAndCallCall;
+
+  constructor(call: UpgradeToAndCallCall) {
+    this._call = call;
+  }
+
+  get newImplementation(): Address {
+    return this._call.inputValues[0].value.toAddress();
+  }
+
+  get data(): Bytes {
+    return this._call.inputValues[1].value.toBytes();
+  }
+}
+
+export class UpgradeToAndCallCall__Outputs {
+  _call: UpgradeToAndCallCall;
+
+  constructor(call: UpgradeToAndCallCall) {
     this._call = call;
   }
 }
