@@ -93,20 +93,20 @@ contract ReFiMedLendTest is Test {
         prepareFunding(address(token), amount);
     }
 
-    function prepareQuotaIncrease(uint256 amount) internal {
+    function prepareQuotaIncrease(address _token, uint256 amount) internal {
         address[] memory signers = new address[](3);
         signers[0] = signer1;
         signers[1] = signer2;
         signers[2] = signer3;
-        refiMedLend.requestIncreaseQuota(currentUser, amount, signers);
+        refiMedLend.requestIncreaseQuota(currentUser, _token, amount, signers);
     }
 
-    function prepareSignIncreaseQuota(uint256 amount) internal {
+    function prepareSignIncreaseQuota(address _token, uint256 amount) internal {
         address[] memory signers = new address[](3);
         signers[0] = signer1;
         signers[1] = signer2;
         signers[2] = signer3;
-        refiMedLend.requestIncreaseQuota(currentUser, amount, signers);
+        refiMedLend.requestIncreaseQuota(currentUser, _token, amount, signers);
         refiMedLend.increaseQuota(currentUser, 0, signer1, amount * 1e3);
         refiMedLend.increaseQuota(currentUser, 0, signer2, amount * 1e3);
         refiMedLend.increaseQuota(currentUser, 0, signer3, amount * 1e3);
@@ -129,7 +129,7 @@ contract ReFiMedLendTest is Test {
         signers[2] = signer3;
         vm.expectEmit(true, true, false, true);
         emit UserQuotaIncreaseRequest(owner, 0, currentUser, 500, signers);
-        prepareQuotaIncrease(500);
+        prepareQuotaIncrease(address(token), 500);
     }
 
     function testRequestIncreaseQuotaFailsOnSameSigner() public {
@@ -139,7 +139,7 @@ contract ReFiMedLendTest is Test {
         signers[1] = signer2;
         signers[2] = signer1;
         vm.expectRevert();
-        refiMedLend.requestIncreaseQuota(currentUser, 500, signers);
+        refiMedLend.requestIncreaseQuota(address(token), currentUser, 500, signers);
     }
 
     function testSignIncreaseQuota() public {
@@ -147,7 +147,7 @@ contract ReFiMedLendTest is Test {
         prepareFunding(1000);
         assertEq(token.balanceOf(address(refiMedLend)), 1000 * 1e18);
         uint256 amount = 500;
-        prepareQuotaIncrease(amount);
+        prepareQuotaIncrease(address(token), amount);
         vm.expectEmit(true, true, false, true);
         emit UserQuotaSigned(signer1, 0, currentUser, 500 * 1e3);
         refiMedLend.increaseQuota(currentUser, 0, signer1, amount * 1e3);
@@ -172,7 +172,7 @@ contract ReFiMedLendTest is Test {
         address[] memory signers = new address[](3);
         prepareFunding(1000);
         assertEq(token.balanceOf(address(refiMedLend)), 1000 * 1e18);
-        prepareSignIncreaseQuota(500);
+        prepareSignIncreaseQuota(address(token), 500);
         vm.prank(currentUser);
         vm.expectEmit(true, true, false, true);
         uint256 nonce = _generateLendingId();
@@ -185,7 +185,7 @@ contract ReFiMedLendTest is Test {
         address[] memory signers = new address[](3);
         prepareFunding(1000);
         assertEq(token.balanceOf(address(refiMedLend)), 1000 * 1e18);
-        prepareSignIncreaseQuota(500);
+        prepareSignIncreaseQuota(address(token), 500);
         vm.prank(currentUser);
         refiMedLend.requestLend(500, address(token), block.timestamp + 1000);
         assert(token.balanceOf(address(refiMedLend)) == 500 * 1e18);
@@ -208,7 +208,7 @@ contract ReFiMedLendTest is Test {
         address[] memory signers = new address[](3);
         prepareFunding(1000);
         assertEq(token.balanceOf(address(refiMedLend)), 1000 * 1e18);
-        prepareSignIncreaseQuota(500);
+        prepareSignIncreaseQuota(address(token), 500);
         vm.prank(currentUser);
         refiMedLend.requestLend(500, address(token), block.timestamp + 1000);
         assert(token.balanceOf(address(refiMedLend)) == 500 * 1e18);
@@ -228,7 +228,7 @@ contract ReFiMedLendTest is Test {
         address[] memory signers = new address[](3);
         prepareFunding(1000);
         assertEq(token.balanceOf(address(refiMedLend)), 1000 * 1e18);
-        prepareSignIncreaseQuota(500);
+        prepareSignIncreaseQuota(address(token), 500);
         vm.prank(currentUser);
         refiMedLend.requestLend(500, address(token), block.timestamp + 1000);
         assert(token.balanceOf(address(refiMedLend)) == 500 * 1e18);
@@ -251,7 +251,7 @@ contract ReFiMedLendTest is Test {
         address[] memory signers = new address[](3);
 
         prepareFunding(1000);
-        prepareSignIncreaseQuota(500);
+        prepareSignIncreaseQuota(address(token), 500);
 
         vm.prank(currentUser);
         refiMedLend.requestLend(500, address(token), block.timestamp + 1000);
@@ -292,7 +292,7 @@ contract ReFiMedLendTest is Test {
         prepareFunding(1000);
         vm.stopPrank();
         assertEq(token.balanceOf(address(refiMedLend)), 2000 * 1e18);
-        prepareSignIncreaseQuota(1300);
+        prepareSignIncreaseQuota(address(token), 1300);
 
         vm.prank(currentUser);
         refiMedLend.requestLend(1300, address(token), block.timestamp + 1000);
@@ -343,7 +343,7 @@ contract ReFiMedLendTest is Test {
         prepareFunding(1000);
         vm.stopPrank();
         assertEq(token.balanceOf(address(refiMedLend)), 2000 * 1e18);
-        prepareSignIncreaseQuota(1300);
+        prepareSignIncreaseQuota(address(token), 1300);
 
         vm.prank(currentUser);
         refiMedLend.requestLend(1300, address(token), block.timestamp + 1000);
@@ -384,7 +384,7 @@ contract ReFiMedLendTest is Test {
         vm.stopPrank();
 
         // Generar intereses
-        prepareSignIncreaseQuota(1300);
+        prepareSignIncreaseQuota(address(token), 1300);
         vm.prank(currentUser);
         refiMedLend.requestLend(1300, address(token), block.timestamp + 1000);
         uint256 time = LendManagerUtils.timestampsToDays(block.timestamp, block.timestamp + 31556926);
@@ -448,7 +448,7 @@ contract ReFiMedLendTest is Test {
         vm.stopPrank();
         assertEq(token.balanceOf(address(refiMedLend)), 3000 * 1e18);
         // Simulate generating interests
-        prepareSignIncreaseQuota(1000);
+        prepareSignIncreaseQuota(address(token), 1000);
         vm.prank(currentUser);
         refiMedLend.requestLend(1000, address(token), block.timestamp + 1000);
         uint256 time = LendManagerUtils.timestampsToDays(block.timestamp, block.timestamp + 31556926);

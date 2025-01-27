@@ -28,6 +28,7 @@ contract ReFiMedLendUpgradeable is
     }
 
     struct UserQuotaRequest {
+        address token;
         uint256 amount;
         uint8 successfulSigns;
         address[] signers;
@@ -35,7 +36,7 @@ contract ReFiMedLendUpgradeable is
     }
 
     struct User {
-        uint256 quota;
+        mapping(address => uint256) quota;
         Lend[] currentLends;
         UserQuotaRequest[] userQuotaRequests;
         mapping(address => uint256) currentFund;
@@ -56,7 +57,7 @@ contract ReFiMedLendUpgradeable is
     uint256 private _SCALAR;
     uint256 private _lendNonce;
 
-    mapping(address => User) public user;
+    mapping(address => User) private user;
     mapping(address => mapping(address => uint256)) private _userTokenBalances;
 
     mapping(address => bool) internal _tokens;
@@ -173,14 +174,14 @@ contract ReFiMedLendUpgradeable is
     function requestLend(uint256 amount, address token, uint256 paymentDue) external whenNotPaused {
         User storage currentUser = user[msg.sender];
         uint256 scaledAmount = amount * _SCALAR;
-        require(currentUser.quota >= scaledAmount, "The user has less quota than the required amount");
+        require(currentUser.quota[token] >= scaledAmount, "The user has less quota than the required amount");
         uint8 decimals = ERC20(token).decimals();
         require(decimals > 0, "Error while obtaining decimals");
         uint256 balance = ERC20(token).balanceOf(address(this));
         require(balance >= amount * 10 ** decimals, "Insuficent liquidity");
         uint256 lendId = _generateLendingId();
         currentUser.currentLends.push(Lend(scaledAmount, scaledAmount, token, paymentDue, block.timestamp, lendId));
-        currentUser.quota -= scaledAmount;
+        currentUser.quota[token] -= scaledAmount;
         require(ERC20(token).transfer(msg.sender, amount * 10 ** decimals), "Error while transfering assets");
         emit Lending(msg.sender, scaledAmount, token, decimals, paymentDue, lendId);
     }
@@ -212,7 +213,7 @@ contract ReFiMedLendUpgradeable is
                 currentUser.currentLends[lendIndex] = currentUser.currentLends[currentUser.currentLends.length - 1];
             }
             currentUser.currentLends.pop();
-            currentUser.quota += initialAmount;
+            currentUser.quota[token] += initialAmount;
 
             emit LendRepaid(msg.sender, amount, token, decimals, nonce);
         }
@@ -223,7 +224,7 @@ contract ReFiMedLendUpgradeable is
         emit Debt(msg.sender, amount, interests, token, decimals, nonce);
     }
 
-    function requestIncreaseQuota(address recipent, uint256 amount, address[] calldata signers)
+    function requestIncreaseQuota(address recipent, address token, uint256 amount, address[] calldata signers)
         external
         whenNotPaused
         onlyAdmin
@@ -232,9 +233,10 @@ contract ReFiMedLendUpgradeable is
         address[] memory seenSigners = new address[](signers.length);
 
         require(signers.length >= 3, "Signers must be at leat 3");
-        require(signers.length <= 10, "Signers must be least than 10");
-        require(amount > 0, "Amount must be greather than 0");
-        user[recipent].userQuotaRequests.push(UserQuotaRequest(scaledAmount, 0, new address[](0), new address[](0)));
+        require(signers.length <= 10, "Signers must be less than 10");
+        require(amount > 0, "Amount must be greater than 0");
+        require(_tokens[token], "Token is not whitelisted yet");
+        user[recipent].userQuotaRequests.push(UserQuotaRequest(token, scaledAmount, 0, new address[](0), new address[](0)));
         uint256 seenCount = 0;
         for (uint8 i; i < signers.length; ++i) {
             address signer = signers[i];
@@ -307,11 +309,11 @@ contract ReFiMedLendUpgradeable is
         return result;
     }
 
-    function decreaseQuota(address recipent, uint256 amount) external whenNotPaused onlyAdmin {
+    function decreaseQuota(address recipent, address token, uint256 amount) external whenNotPaused onlyAdmin {
         uint256 scaledAmount = amount * _SCALAR;
-        require(user[recipent].quota >= scaledAmount, "Insuficent quota");
-        user[recipent].quota -= scaledAmount;
-        emit UserQuotaChanged(msg.sender, recipent, user[recipent].quota);
+        require(user[recipent].quota[token] >= scaledAmount, "Insuficent quota");
+        user[recipent].quota[token] -= scaledAmount;
+        emit UserQuotaChanged(msg.sender, recipent, user[recipent].quota[token]);
     }
 
     function increaseQuota(address recipent, uint16 index, address caller, uint256 amount) external returns (bool) {
@@ -320,6 +322,7 @@ contract ReFiMedLendUpgradeable is
         bool senderIsSigner;
         UserQuotaRequest storage userQuotaRequest = user[recipent].userQuotaRequests[index];
         require(amount == userQuotaRequest.amount, "The attestation amount does not match the request");
+        address token = userQuotaRequest.token;
         uint256 scaledAmount = userQuotaRequest.amount;
         uint256 userQuotaSignersLength = userQuotaRequest.signers.length;
         for (uint8 signerIndex; signerIndex < userQuotaSignersLength; ++signerIndex) {
@@ -342,8 +345,8 @@ contract ReFiMedLendUpgradeable is
         userQuotaRequest.signedBy.push(caller);
         userQuotaRequest.successfulSigns += 1;
         if (userQuotaRequest.successfulSigns == 3) {
-            user[recipent].quota += scaledAmount;
-            emit UserQuotaChanged(caller, recipent, user[recipent].quota);
+            user[recipent].quota[token] += scaledAmount;
+            emit UserQuotaChanged(caller, recipent, user[recipent].quota[token]);
         }
         emit UserQuotaSigned(caller, index, recipent, userQuotaRequest.amount);
         return true;
@@ -376,7 +379,7 @@ contract ReFiMedLendUpgradeable is
         returns (uint256 quota, uint256 currentFund, uint256 interestShares, uint256 lastFund)
     {
         User storage userData = user[userAddress];
-        return (userData.quota, userData.currentFund[token], userData.interestShares[token], userData.lastFund[token]);
+        return (userData.quota[token], userData.currentFund[token], userData.interestShares[token], userData.lastFund[token]);
     }
 
     function _withdraw(uint256 amount, uint256 interests, address token, uint8 decimals) private {
