@@ -81,7 +81,7 @@ contract ReFiMedLendUpgradeable is
     );
 
     event UserQuotaIncreaseRequest(
-        address indexed caller, uint16 indexed index, address indexed recipent, uint256 amount, address[] signers
+        address indexed caller, uint16 indexed index, address indexed recipent, address token, uint256 amount, address[] signers
     );
 
     event UserQuotaChanged(address indexed caller, address indexed recipent, uint256 amount);
@@ -248,7 +248,7 @@ contract ReFiMedLendUpgradeable is
             user[recipent].userQuotaRequests[user[recipent].userQuotaRequests.length - 1].signers.push(signer);
         }
         emit UserQuotaIncreaseRequest(
-            msg.sender, uint16(user[recipent].userQuotaRequests.length - 1), recipent, amount, signers
+            msg.sender, uint16(user[recipent].userQuotaRequests.length - 1), recipent, token, amount, signers
         );
     }
 
