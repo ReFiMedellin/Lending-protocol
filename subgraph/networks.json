@@ -1,8 +1,8 @@
 {
   "sepolia": {
     "ReFiMedLend": {
-      "address": "0x2C4863195C6B9693eDcc2FB7A1eBAaeBB6a94C3b",
-      "startBlock": 7576326 
+      "address": "0xE8f6517D9655183f739f8dFC8c6ee4F213CE9190",
+      "startBlock": 7584605 
     }
   },
   "celo": {

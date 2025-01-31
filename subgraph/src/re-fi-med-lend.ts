@@ -236,6 +236,7 @@ export function handleUserQuotaIncreaseRequest(
 
   if (userQuotaRequest == null) {
     userQuotaRequest = new UserQuotaRequest(id);
+    userQuotaRequest.token = event.params.token;
     userQuotaRequest.user = event.params.recipent.toHex();
     userQuotaRequest.amount = event.params.amount;
     userQuotaRequest.successfulSigns = 0;

@@ -85,6 +85,11 @@
         "internalType": "address"
       },
       {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
         "name": "amount",
         "type": "uint256",
         "internalType": "uint256"
@@ -269,6 +274,11 @@
         "type": "tuple[]",
         "internalType": "struct ReFiMedLendUpgradeable.UserQuotaRequest[]",
         "components": [
+          {
+            "name": "token",
+            "type": "address",
+            "internalType": "address"
+          },
           {
             "name": "amount",
             "type": "uint256",
@@ -503,6 +513,11 @@
         "internalType": "address"
       },
       {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
         "name": "amount",
         "type": "uint256",
         "internalType": "uint256"
@@ -666,25 +681,6 @@
     ],
     "outputs": [],
     "stateMutability": "payable"
-  },
-  {
-    "type": "function",
-    "name": "user",
-    "inputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "quota",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -1092,6 +1088,12 @@
         "name": "recipent",
         "type": "address",
         "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "token",
+        "type": "address",
+        "indexed": false,
         "internalType": "address"
       },
       {
