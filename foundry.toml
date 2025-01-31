@@ -14,3 +14,4 @@ ignored = ["src/LendManager.sol", "test/MockERC20.sol"]
 
 [rpc_endpoints]
 sepolia = "https://rpc.ankr.com/eth_sepolia"
+celo = "https://rpc.ankr.com/celo"

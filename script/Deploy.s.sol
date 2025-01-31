@@ -9,6 +9,7 @@ import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.s
 
 contract DeployLendUpgradeable is Script {
     address constant SEPOLIA_EAS = 0xC2679fBD37d54388Ce493F1DB75320D236e1815e;
+    address constant CELO_EAS = 0x72E1d8ccf5299fb36fEfD8CC4394B8ef7e98Af92;
 
     function run() external returns (address) {
         address proxy = deployLend();
@@ -16,9 +17,16 @@ contract DeployLendUpgradeable is Script {
     }
 
     function deployLend() public returns (address) {
+        address easAddress;
         vm.startBroadcast();
 
-        ReFiMedLendResolver lendResolver = new ReFiMedLendResolver(IEAS(SEPOLIA_EAS));
+        if (block.chainid == 42220) {
+          easAddress = CELO_EAS;
+        } else {
+          easAddress = SEPOLIA_EAS;
+        }
+
+        ReFiMedLendResolver lendResolver = new ReFiMedLendResolver(IEAS(easAddress));
         console.log("LendResolver address: ", address(lendResolver));
 
         ReFiMedLendUpgradeable lendManager = new ReFiMedLendUpgradeable(); // Implementation
