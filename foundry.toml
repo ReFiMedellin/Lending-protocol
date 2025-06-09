@@ -6,12 +6,20 @@ ffi = true
 ast = true
 build_info = true
 extra_output = ["storageLayout"]
+solc_version = "0.8.20"
+optimizer = true
+optimizer_runs = 200
+evm_version = "paris"
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
 
 [profile.test]
 ignored = ["src/LendManager.sol", "test/MockERC20.sol"]
 
+[etherscan]
+celo = { key = "DV3QPMMQ8ZYG176IGWH7WHFEWB3UJYG7N2", url = "https://api.celoscan.io/api" }
+
+
 [rpc_endpoints]
-sepolia = "https://rpc.ankr.com/eth_sepolia"
-celo = "https://rpc.ankr.com/celo"
+sepolia = "https://rpc.ankr.com/eth_sepolia/ce29f559c4c7897dd275a46c6d99296b8efe3a3810193fda29402c8edb38f88c"
+celo = "https://forno.celo.org"

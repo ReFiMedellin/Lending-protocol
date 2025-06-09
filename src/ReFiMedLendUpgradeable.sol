@@ -10,7 +10,6 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/U
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {IRandom} from "./library/IRandom.sol";
 import {IRegistry} from "./library/IRegistry.sol";
-import {console2} from "forge-std/console2.sol";
 
 /// @custom:oz-upgrades-unsafe-allow external-library-linking
 contract ReFiMedLendUpgradeable is
@@ -83,7 +82,12 @@ contract ReFiMedLendUpgradeable is
     );
 
     event UserQuotaIncreaseRequest(
-        address indexed caller, uint16 indexed index, address indexed recipent, address token, uint256 amount, address[] signers
+        address indexed caller,
+        uint16 indexed index,
+        address indexed recipent,
+        address token,
+        uint256 amount,
+        address[] signers
     );
 
     event UserQuotaChanged(address indexed caller, address indexed recipent, uint256 amount);
@@ -151,7 +155,6 @@ contract ReFiMedLendUpgradeable is
                     / (currentUser.currentFund[token] * 1e18)
             ) / 1e18
         );
-        console2.log("interestPerShare", tokenFunds[token].interestPerShare);
         uint256 owedInterest = (interestShares * tokenFunds[token].interestPerShare) / 1e18;
         tokenFunds[token].totalInterestShares -= interestShares;
         currentUser.interestShares[token] -= interestShares;
@@ -238,7 +241,9 @@ contract ReFiMedLendUpgradeable is
         require(signers.length <= 10, "Signers must be less than 10");
         require(amount > 0, "Amount must be greater than 0");
         require(_tokens[token], "Token is not whitelisted yet");
-        user[recipent].userQuotaRequests.push(UserQuotaRequest(token, scaledAmount, 0, new address[](0), new address[](0)));
+        user[recipent].userQuotaRequests.push(
+            UserQuotaRequest(token, scaledAmount, 0, new address[](0), new address[](0))
+        );
         uint256 seenCount = 0;
         for (uint8 i; i < signers.length; ++i) {
             address signer = signers[i];
@@ -381,7 +386,9 @@ contract ReFiMedLendUpgradeable is
         returns (uint256 quota, uint256 currentFund, uint256 interestShares, uint256 lastFund)
     {
         User storage userData = user[userAddress];
-        return (userData.quota[token], userData.currentFund[token], userData.interestShares[token], userData.lastFund[token]);
+        return (
+            userData.quota[token], userData.currentFund[token], userData.interestShares[token], userData.lastFund[token]
+        );
     }
 
     function _withdraw(uint256 amount, uint256 interests, address token, uint8 decimals) private {
@@ -403,11 +410,7 @@ contract ReFiMedLendUpgradeable is
     }
 
     function _generateLendingId() private returns (uint256) {
-        bytes32 randomness = IRandom(
-            IRegistry(0x000000000000000000000000000000000000ce10)
-            .getAddressFor(keccak256(abi.encodePacked("Random")))
-        ).random();
-        uint256 random = uint256(keccak256(abi.encodePacked(randomness, block.timestamp, _lendNonce)));
+        uint256 random = uint256(keccak256(abi.encodePacked(block.prevrandao, block.timestamp, _lendNonce)));
         _lendNonce++;
         return random;
     }
