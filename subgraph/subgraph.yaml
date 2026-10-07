@@ -6,11 +6,11 @@ schema:
 dataSources:
   - kind: ethereum
     name: ReFiMedLend
-    network: sepolia
+    network: celo
     source:
       abi: ReFiMedLend
-      address: "0xE8f6517D9655183f739f8dFC8c6ee4F213CE9190"
-      startBlock: 7584605
+      address: "0x563456095a3a16f86885ED0CB22fE8Af14e700B7"
+      startBlock: 79502412
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -34,6 +34,12 @@ dataSources:
       abis:
         - name: ReFiMedLend
           file: ./abis/ReFiMedLend.json
+      # Runs once when the subgraph starts and loads every earlier event
+      # (see src/history.ts).
+      blockHandlers:
+        - handler: handleReplayHistory
+          filter:
+            kind: once
       eventHandlers:
         - event: Debt(indexed address,uint256,uint256,indexed address,uint8,uint256)
           handler: handleDebt
