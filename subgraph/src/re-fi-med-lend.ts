@@ -311,3 +311,4 @@ export function handleWithdraw(event: WithdrawEvent): void {
 
   entity.save();
 }
+export { handleReplayHistory } from './history';
