@@ -6,11 +6,11 @@ schema:
 dataSources:
   - kind: ethereum
     name: ReFiMedLend
-    network: sepolia
+    network: celo
     source:
-      address: "0x8B72991A0D96B49CC89A42BB61b1baca9812f163"
+      address: '0x505E65f7D854d4a564b5486d59c91E1DfE627579'
       abi: ReFiMedLend
-      startBlock: 5750975
+      startBlock: 79502412
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.7
@@ -34,6 +34,12 @@ dataSources:
       abis:
         - name: ReFiMedLend
           file: ./abis/ReFiMedLend.json
+      # Runs once when the subgraph starts and loads every earlier event
+      # (see src/history.ts).
+      blockHandlers:
+        - handler: handleReplayHistory
+          filter:
+            kind: once
       eventHandlers:
         - event: Debt(indexed address,uint256,uint256,indexed address,uint8,uint256)
           handler: handleDebt
@@ -57,7 +63,8 @@ dataSources:
           handler: handleTokenAdded
         - event: Unpaused(address)
           handler: handleUnpaused
-        - event: UserQuotaIncreaseRequest(indexed address,indexed uint16,indexed address,uint256,address[])
+        - event: UserQuotaIncreaseRequest(indexed address,indexed uint16,indexed
+            address,uint256,address[])
           handler: handleUserQuotaIncreaseRequest
         - event: UserQuotaChanged(indexed address,indexed address,uint256)
           handler: handleUserQuotaChanged
